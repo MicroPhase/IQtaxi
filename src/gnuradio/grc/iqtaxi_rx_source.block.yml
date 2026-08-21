@@ -1,0 +1,68 @@
+id: iqtaxi_rx_source
+label: IQTAXI RX Source
+category: '[IQTAXI]'
+flags: throttle
+
+parameters:
+- id: device
+  label: Device
+  dtype: enum
+  default: '"E206"'
+  options: ['"E100"', '"E200"', '"E206"', '"M300_XDMA"', '"FNIC_XDMA"']
+  option_labels: [E100 (MP2021), E200 (AD9361), E206 (MP2021), M300 (PCIe), FNIC (PCIe)]
+- id: addr
+  label: Address
+  dtype: string
+  default: '"192.168.1.11"'
+- id: channels
+  label: RX Channels
+  dtype: int
+  default: '1'
+  options: ['1', '2']
+  option_labels: [1R, 2R]
+- id: sample_rate
+  label: Sample Rate
+  dtype: real
+  default: samp_rate
+- id: center_freq
+  label: Center Frequency
+  dtype: real
+  default: 100e6
+- id: gain
+  label: RX0 Gain
+  dtype: real
+  default: 10
+- id: gain_ch1
+  label: RX1 Gain
+  dtype: real
+  default: 10
+  hide: ${ 'none' if channels == 2 else 'all' }
+- id: samples_per_work
+  label: Work Samples
+  dtype: int
+  default: 4096
+
+outputs:
+- domain: stream
+  dtype: complex
+  label: RX
+  multiplicity: ${ channels }
+
+asserts:
+- ${ channels == 1 or device in ('"M300"', '"M300_XDMA"', '"M300_PCIE"', '"FNIC_XDMA"') }
+
+templates:
+  imports: from gnuradio import iqtaxi
+  make: iqtaxi.rx_source(${device}, ${addr}, ${sample_rate}, ${center_freq}, ${gain}, ${samples_per_work}, ${channels}, ${gain_ch1})
+  callbacks:
+  - set_sample_rate(${sample_rate})
+  - set_center_freq(${center_freq})
+  - set_gain(${gain})
+  - set_gain_ch1(${gain_ch1})
+
+documentation: |-
+  M300 supports one or two receive channels. In 2R mode output RX0 maps to
+  AD9361 RX1 and output RX1 maps to AD9361 RX2. RX and TX channel counts must
+  match when both blocks use the same M300 because channel_enable is shared.
+
+file_format: 1

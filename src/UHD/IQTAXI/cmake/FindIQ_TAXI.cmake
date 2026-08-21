@@ -1,0 +1,30 @@
+set(IQ_TAXI_INCLUDE_DIRS "/usr/local/include/iq_taxi")
+set(IQ_TAXI_LIBRARY_DIR "/usr/local/lib")
+
+
+FIND_LIBRARY(IQ_TAXI_SDR_CORE_LIBRARY
+    NAMES sdr_core
+    PATHS ${IQ_TAXI_LIBRARY_DIR}
+    NO_DEFAULT_PATH
+)
+
+FIND_LIBRARY(IQ_TAXI_SDR_DRIVER_LIBRARY
+    NAMES sdr_driver
+    PATHS ${IQ_TAXI_LIBRARY_DIR}
+    NO_DEFAULT_PATH
+)
+
+set(IQ_TAXI_LIBRARIES
+    ${IQ_TAXI_SDR_CORE_LIBRARY}
+    ${IQ_TAXI_SDR_DRIVER_LIBRARY}
+)
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(
+    IQ_TAXI
+    REQUIRED_VARS
+    IQ_TAXI_INCLUDE_DIRS
+    IQ_TAXI_LIBRARIES
+)
+
+MARK_AS_ADVANCED(IQ_TAXI_INCLUDE_DIRS IQ_TAXI_LIBRARIES)

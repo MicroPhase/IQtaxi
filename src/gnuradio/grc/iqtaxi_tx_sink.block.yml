@@ -1,0 +1,79 @@
+id: iqtaxi_tx_sink
+label: IQTAXI TX Sink
+category: '[IQTAXI]'
+flags: throttle
+
+parameters:
+- id: device
+  label: Device
+  dtype: enum
+  default: '"E206"'
+  options: ['"E100"', '"E200"', '"E206"', '"M300_XDMA"', '"FNIC_XDMA"']
+  option_labels: [E100 (MP2021), E200 (AD9361), E206 (MP2021), M300 (PCIe), FNIC (PCIe)]
+- id: addr
+  label: Address
+  dtype: string
+  default: '"192.168.1.11"'
+- id: channels
+  label: TX Channels
+  dtype: int
+  default: '1'
+  options: ['1', '2']
+  option_labels: [1T, 2T]
+- id: sample_rate
+  label: Sample Rate
+  dtype: real
+  default: samp_rate
+- id: center_freq
+  label: Center Frequency
+  dtype: real
+  default: 100e6
+- id: attenuation
+  label: TX0 Attenuation
+  dtype: real
+  default: 0
+- id: attenuation_ch1
+  label: TX1 Attenuation
+  dtype: real
+  default: 0
+  hide: ${ 'none' if channels == 2 else 'all' }
+- id: samples_per_packet
+  label: Packet Samples
+  dtype: int
+  default: 1024
+- id: timed
+  label: Timed TX
+  dtype: enum
+  default: 'False'
+  options: ['False', 'True']
+  option_labels: [No, Yes]
+- id: start_delay_ms
+  label: Start Delay ms
+  dtype: real
+  default: 0
+  hide: ${ 'none' if timed == 'True' else 'part' }
+
+inputs:
+- domain: stream
+  dtype: complex
+  label: TX
+  multiplicity: ${ channels }
+
+asserts:
+- ${ channels == 1 or device in ('"M300"', '"M300_XDMA"', '"M300_PCIE"', '"FNIC_XDMA"') }
+
+templates:
+  imports: from gnuradio import iqtaxi
+  make: iqtaxi.tx_sink(${device}, ${addr}, ${sample_rate}, ${center_freq}, ${attenuation}, ${samples_per_packet}, ${timed}, ${start_delay_ms}, ${channels}, ${attenuation_ch1})
+  callbacks:
+  - set_sample_rate(${sample_rate})
+  - set_center_freq(${center_freq})
+  - set_attenuation(${attenuation})
+  - set_attenuation_ch1(${attenuation_ch1})
+
+documentation: |-
+  M300 supports one or two transmit channels. In 2T mode input TX0 maps to
+  AD9361 TX1 and input TX1 maps to AD9361 TX2. RX and TX channel counts must
+  match when both blocks use the same M300 because channel_enable is shared.
+
+file_format: 1

@@ -1,0 +1,23 @@
+; Export undecorated ExtIO entry points.
+; Works for MinGW/MXE x86_64 and for MSVC when linked with this .def.
+LIBRARY ExtIO_MicroPhase
+EXPORTS
+    InitHW
+    OpenHW
+    CloseHW
+    StartHW
+    StopHW
+    SetCallback
+    SetHWLO
+    GetHWLO
+    GetHWSR
+    GetStatus
+    ShowGUI
+    HideGUI
+    ExtIoGetSrates
+    ExtIoGetActualSrateIdx
+    ExtIoSetSrate
+    GetAttenuators
+    GetActualAttIdx
+    SetAttenuator
+    VersionInfo
