@@ -10,6 +10,7 @@
 
 #include "include/sdr/api/Device.hpp"
 #include "include/sdr/api/DeviceProfile.hpp"
+#include "include/sdr/api/SampleRates.hpp"
 
 #include <algorithm>
 #include <array>
@@ -33,15 +34,19 @@ constexpr uint8_t kStreamMode = 0x1;
 constexpr size_t kMaxPacketSamples = (1472u - 16u) / 4u;
 constexpr size_t kRecvChunkSamples = 8192u;
 
-// E100/E206 driver quantizes to these 6 rates.
-constexpr double kE100Rates[] = {
-    1920000.0,
-    7680000.0,
-    15360000.0,
-    30720000.0,
-    61440000.0,
-    122880000.0,
-};
+template <std::size_t N>
+constexpr std::array<double, N> toDoubleRates(
+    const std::array<uint32_t, N>& rates)
+{
+    std::array<double, N> result{};
+    for (std::size_t i = 0; i < N; ++i) {
+        result[i] = static_cast<double>(rates[i]);
+    }
+    return result;
+}
+
+constexpr auto kGc080xRates =
+    toDoubleRates(sdr::api::kGc080xLegacySampleRatesHz);
 
 // E200 / AD9361: keep rates at or below 61.44 Msps.
 constexpr double kE200Rates[] = {
@@ -66,32 +71,6 @@ constexpr double kE200Rates[] = {
     61440000.0,
 };
 
-// E206 firmware sample-rate profiles.
-constexpr double kE206Rates[] = {
-    1920000.0,
-    2000000.0,
-    3840000.0,
-    4000000.0,
-    5000000.0,
-    5760000.0,
-    7680000.0,
-    8000000.0,
-    10000000.0,
-    11520000.0,
-    15360000.0,
-    16000000.0,
-    20000000.0,
-    23040000.0,
-    30720000.0,
-    32000000.0,
-    40000000.0,
-    46080000.0,
-    61440000.0,
-    64000000.0,
-    80000000.0,
-    122880000.0,
-};
-
 struct DeviceSpec {
     const char* name;
     const sdr::api::DeviceProfile& (*profile)();
@@ -101,9 +80,9 @@ struct DeviceSpec {
 };
 
 const DeviceSpec kDeviceSpecs[] = {
-    {"E100", &sdr::api::e100_udp_profile, kE100Rates, std::size(kE100Rates), 15360000.0},
+    {"E100", &sdr::api::e100_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
     {"E200", &sdr::api::e200_udp_profile, kE200Rates, std::size(kE200Rates), 30720000.0},
-    {"E206", &sdr::api::e206_udp_profile, kE206Rates, std::size(kE206Rates), 15360000.0},
+    {"E206", &sdr::api::e206_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
 };
 
 constexpr int kDeviceCount = static_cast<int>(std::size(kDeviceSpecs));

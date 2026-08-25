@@ -284,11 +284,11 @@ int tx_sink_impl::work(int noutput_items,
     if (auto packet_stream = std::dynamic_pointer_cast<send_packet_streamer>(tx_stream)) {
         if (!packet_stream->get_tx_flow_control_stats().ready_to_send) {
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
-            std::lock_guard<std::mutex> lock(d_mutex);
-            if (d_streaming && tx_stream == d_tx_stream) {
-                d_timestamp += to_send;
-            }
-            return static_cast<int>(to_send);
+            // Do not consume samples while the FPGA has paused ingress.  The
+            // GNU Radio scheduler will retry the same input after the TX FIFO
+            // resumes; consuming it here creates a real RF gap and also moves
+            // the timestamp past samples that were never transmitted.
+            return 0;
         }
     }
 

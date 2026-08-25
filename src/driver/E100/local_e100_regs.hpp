@@ -74,6 +74,10 @@ namespace e100{
     constexpr uint32_t CUSTOM_SET_REPLAY_DMA_WRITE_NEXT       =  0x003c;
     constexpr uint32_t CUSTOM_SET_VCXO_REF_SOURCE             =  0x003d;
     constexpr uint32_t CUSTOM_SET_VCXO_DAC_VALUE              =  0x003e;
+    // E100 retains 0x003d/0x003e for its RF amplifier protocol.  Its VCXO
+    // controls therefore use a separate, collision-free command pair.
+    constexpr uint32_t CUSTOM_SET_E100_VCXO_REF_SOURCE        =  0x003f;
+    constexpr uint32_t CUSTOM_SET_E100_VCXO_DAC_VALUE         =  0x0040;
  
     constexpr uint32_t CUSTOM_SET_RB_ADDR                     =  0x0030;
  
@@ -115,6 +119,7 @@ namespace e100{
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_LO_FREQ_ADDR      =  0x001e;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH1_LO_FREQ_ADDR      =  0x001f;
     constexpr uint32_t CUSTOM_RB_GET_VCXO_STATUS              =  0x0020;
+    constexpr uint32_t CUSTOM_RB_GET_E100_VCXO_STATUS         =  0x0021;
 
     constexpr uint32_t CUSTOM_SR_CORE_SPI      = 0x1100+8;
     constexpr uint32_t CUSTOM_SR_CORE_MISC     = 0x1100+16;

@@ -9,6 +9,7 @@
 #include "src/driver/E100/e100_impl.hpp"
 #include "src/driver/E100/local_e100_regs.hpp"
 #include "src/driver/transport/local_regs.hpp"
+#include "include/sdr/api/SampleRates.hpp"
 
 #include <algorithm>
 #include <array>
@@ -204,30 +205,8 @@ static std::string format_freq_label(double hz)
     return oss.str();
 }
 
-static const std::array<uint32_t, 22> kSupportedSampleRates = {
-    122880000u,
-    61440000u,
-    30720000u,
-    15360000u,
-    7680000u,
-    3840000u,
-    1920000u,
-    46080000u,
-    23040000u,
-    11520000u,
-    5760000u,
-    80000000u,
-    40000000u,
-    20000000u,
-    10000000u,
-    5000000u,
-    64000000u,
-    32000000u,
-    16000000u,
-    8000000u,
-    4000000u,
-    2000000u,
-};
+static constexpr const auto& kSupportedSampleRates =
+    sdr::api::kGc080xLegacySampleRatesHz;
 
 static const std::array<size_t, 5> kSupportedSpectrumFftSizes = {
     4096u,

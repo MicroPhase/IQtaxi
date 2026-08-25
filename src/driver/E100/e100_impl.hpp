@@ -11,6 +11,22 @@
 
 class E100Impl : public IqtaxiUdpImpl {
 public:
+    enum class VcxoReferenceSource : uint32_t {
+        pps = 0u,
+        external_10mhz = 1u,
+        manual_dac = 2u,
+    };
+
+    struct VcxoStatus {
+        bool locked = false;
+        bool reference_valid = false;
+        bool reference_is_10mhz = false;
+        bool reference_is_pps = false;
+        VcxoReferenceSource selected_source = VcxoReferenceSource::pps;
+        uint16_t dac_value = 0u;
+        uint32_t raw = 0u;
+    };
+
     static constexpr uint32_t RECORD_STATUS_DONE = 0x1u;
     static constexpr uint32_t RECORD_STATUS_ACTIVE = 0x2u;
     static constexpr uint32_t RECORD_STATUS_ERROR = 0x4u;
@@ -19,6 +35,9 @@ public:
     ~E100Impl() override = default;
 
     void setSampleRate(double rate) override;
+    void set_vcxo_reference_source(VcxoReferenceSource source);
+    void set_vcxo_manual_dac(uint16_t value);
+    VcxoStatus get_vcxo_status();
 
     void configure_iq_record(uint32_t length_bytes, uint32_t dma_block_size);
     void start_iq_record(uint32_t length_bytes = 0);

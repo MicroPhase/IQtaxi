@@ -1,5 +1,7 @@
 #pragma once
 
+#include "include/sdr/api/SampleRates.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -28,16 +30,6 @@ struct IqtaxiDeviceCaps
     uint32_t gain_max;
 };
 
-// E100/E206 driver quantizes to these 6 rates.
-inline constexpr uint32_t kIqtaxiE100SampleRates[] = {
-    1920000u,
-    7680000u,
-    15360000u,
-    30720000u,
-    61440000u,
-    122880000u,
-};
-
 // E200 / AD9361: keep rates at or below 61.44 Msps.
 inline constexpr uint32_t kIqtaxiE200SampleRates[] = {
     1920000u,
@@ -61,39 +53,13 @@ inline constexpr uint32_t kIqtaxiE200SampleRates[] = {
     61440000u,
 };
 
-// E206 firmware sample-rate profiles.
-inline constexpr uint32_t kIqtaxiE206SampleRates[] = {
-    122880000u,
-    61440000u,
-    30720000u,
-    15360000u,
-    7680000u,
-    3840000u,
-    1920000u,
-    46080000u,
-    23040000u,
-    11520000u,
-    5760000u,
-    80000000u,
-    40000000u,
-    20000000u,
-    10000000u,
-    5000000u,
-    64000000u,
-    32000000u,
-    16000000u,
-    8000000u,
-    4000000u,
-    2000000u,
-};
-
 inline constexpr IqtaxiDeviceCaps kIqtaxiDeviceCaps[] = {
     {
         "E100",
         "IQTAXI-E100",
         "IQTAXI E100",
-        kIqtaxiE100SampleRates,
-        sizeof(kIqtaxiE100SampleRates) / sizeof(kIqtaxiE100SampleRates[0]),
+        sdr::api::kGc080xLegacySampleRatesHz.data(),
+        sdr::api::kGc080xLegacySampleRatesHz.size(),
         15360000u,
         0u,
         41u,
@@ -112,8 +78,8 @@ inline constexpr IqtaxiDeviceCaps kIqtaxiDeviceCaps[] = {
         "E206",
         "IQTAXI-E206",
         "IQTAXI E206",
-        kIqtaxiE206SampleRates,
-        sizeof(kIqtaxiE206SampleRates) / sizeof(kIqtaxiE206SampleRates[0]),
+        sdr::api::kGc080xLegacySampleRatesHz.data(),
+        sdr::api::kGc080xLegacySampleRatesHz.size(),
         15360000u,
         0u,
         41u,

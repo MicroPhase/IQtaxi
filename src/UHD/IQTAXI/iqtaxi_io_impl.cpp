@@ -130,7 +130,7 @@ uhd::tx_streamer::sptr iqtaxi_impl::get_tx_stream(const uhd::stream_args_t& args
                 CUSTOM_SET_TX_IGNORE_TIMESTAMPS, _ignore_tx_timestamps ? 1u : 0u);
         }
         my_streamer = std::make_shared<iqtaxi_tx_streamer>(
-            native_tx, _local_bus, spp, false, iqtaxi_device, _is_m300);
+            native_tx, _local_bus, spp, false, iqtaxi_device, _is_m300, _is_e100);
     }
     my_streamer->resize(args.channels.size());
 

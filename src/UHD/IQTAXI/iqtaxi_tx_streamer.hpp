@@ -18,11 +18,13 @@ public:
         const size_t max_num_samps,
         bool big_endian,
         sdr::api::Device::sptr device = sdr::api::Device::sptr(),
-        bool manage_stream = false):
+        bool manage_stream = false,
+        bool timed_send_per_burst_default = false):
     _tx_stream(tx_stream),
     _local_bus(local_bus),
     _device(device),
     _manage_stream(manage_stream),
+    _timed_send_per_burst_default(timed_send_per_burst_default),
     _max_num_samps(max_num_samps),
     _bige(big_endian)
     {
@@ -138,7 +140,7 @@ public:
 
         // Some real-time applications (notably the legacy OAI LTE UE) submit
         // one complete, timestamped TTI per UHD send(), but only assert SOB on
-        // the first call and never assert EOB while FDD is active.  E200 cannot
+        // the first call and never assert EOB while FDD is active.  E100 cannot
         // treat those calls as one indefinitely continuous FPGA burst: an
         // Ethernet/deep-FIFO gap would pause the samples and all later per-TTI
         // timestamps would be ignored.  Opt in to making every timestamped
@@ -264,11 +266,13 @@ private:
         return enabled;
     }
 
-    static bool timed_send_per_burst()
+    bool timed_send_per_burst() const
     {
-        static const bool enabled =
-            std::getenv("IQTAXI_TIMED_SEND_PER_BURST") != nullptr;
-        return enabled;
+        const char* value = std::getenv("IQTAXI_TIMED_SEND_PER_BURST");
+        if (value == nullptr) {
+            return _timed_send_per_burst_default;
+        }
+        return std::string(value) != "0" && std::string(value) != "false";
     }
 
     void trace_send(const char* event,
@@ -342,6 +346,7 @@ size_t _header_offset_words32;
     local_ctrl::sptr _local_bus;
     sdr::api::Device::sptr _device;
     bool _manage_stream = false;
+    bool _timed_send_per_burst_default = false;
     bool has_time = false;
     bool _metadata_cached = false;
     uhd::tx_metadata_t _cached_metadata;

@@ -211,16 +211,21 @@ void parse_args(Config& cfg, int argc, char** argv)
 #if defined(IQTAXI_REPLAY_DEVICE_E206)
     switch (cfg.sample_rate_hz) {
     case 1920000u:
+    case 3840000u:
+    case 5760000u:
     case 7680000u:
+    case 11520000u:
     case 15360000u:
+    case 23040000u:
     case 30720000u:
     case 61440000u:
     case 122880000u:
         break;
     default:
         throw std::runtime_error(
-            "E206 supports sample rates 1920000, 7680000, 15360000, 30720000, "
-            "61440000 and 122880000 Hz");
+            "E206 supports sample rates 1920000, 3840000, 5760000, 7680000, "
+            "11520000, 15360000, 23040000, 30720000, 61440000 and "
+            "122880000 Hz");
     }
     if (cfg.tx_atten > 50u) {
         throw std::runtime_error("E206 --tx-atten must be in the range 0..50 dB");

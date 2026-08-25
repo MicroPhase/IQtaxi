@@ -118,6 +118,7 @@ private:
     sdr::api::Device::sptr iqtaxi_device;
     const DeviceProfile* _profile = &e100_udp_profile();
     bool _is_m300 = false;
+    bool _is_e100 = true;
     bool _ignore_tx_timestamps = true;
     std::string _clock_source = "internal";
     // controllers

@@ -1,4 +1,5 @@
 #include "iqtaxiDevice.hpp"
+#include "include/sdr/api/SampleRates.hpp"
 #include "src/driver/M300/m300_xdma_impl.hpp"
 
 #include <exception>
@@ -24,6 +25,15 @@ std::vector<double> IQTaxiDevice::listSampleRates( const int direction, const si
 
     if (_is_m300) {
         return {61.44e6, 30.72e6, 15.36e6, 7.68e6, 3.84e6, 2.083333e6};
+    }
+
+    const std::string& product = profile().product;
+    if (product == "E100" || product == "E206") {
+        options.reserve(sdr::api::kGc080xLegacySampleRatesHz.size());
+        for (uint32_t rate : sdr::api::kGc080xLegacySampleRatesHz) {
+            options.push_back(static_cast<double>(rate));
+        }
+        return options;
     }
 
     options.push_back(122.88e6);

@@ -557,6 +557,7 @@ iqtaxi_impl::iqtaxi_impl(const uhd::device_addr_t &device_addr){
                     backend_name % addr));
         }
         _profile = &iqtaxi_device->get_profile();
+        _is_e100 = _profile->product == MICROPHASE_NAME_E100;
         //uoe
         iqtaxi_device->set_dma_mode(0);
         
@@ -1157,7 +1158,9 @@ sensor_value_t iqtaxi_impl::get_ref_locked(void)
     // [3] PPS detected, [5:4] selected source, [31:16] DAC value.
     // An external UHD reference is usable only when the 10 MHz input is
     // present, selected, and the VCXO disciplining loop has acquired lock.
-    const uint32_t status = _local_bus->peek32(CUSTOM_RB_GET_VCXO_STATUS, 1.0);
+    const uint32_t status = _local_bus->peek32(
+        _is_e100 ? CUSTOM_RB_GET_E100_VCXO_STATUS : CUSTOM_RB_GET_VCXO_STATUS,
+        1.0);
     const bool lock = (status & 0x7u) == 0x7u && ((status >> 4) & 0x3u) == 1u;
     return sensor_value_t("Ref", lock, "locked", "unlocked");
 }
@@ -1260,7 +1263,7 @@ void iqtaxi_impl::update_clock_source(const std::string& source)
 
     if (source == "external") {
         const uint64_t response = _local_bus->poke32_ack_value(
-            CUSTOM_SET_VCXO_REF_SOURCE,
+            _is_e100 ? CUSTOM_SET_E100_VCXO_REF_SOURCE : CUSTOM_SET_VCXO_REF_SOURCE,
             static_cast<uint32_t>(E200Impl::VcxoReferenceSource::external_10mhz),
             1.0);
         if (response != 0u) {
@@ -1271,13 +1274,16 @@ void iqtaxi_impl::update_clock_source(const std::string& source)
         // operation. This avoids a frequency step when returning from an
         // external reference and gives UHD's "internal" source its expected
         // local-oscillator semantics.
-        const uint32_t status = _local_bus->peek32(CUSTOM_RB_GET_VCXO_STATUS, 1.0);
+        const uint32_t status = _local_bus->peek32(
+            _is_e100 ? CUSTOM_RB_GET_E100_VCXO_STATUS : CUSTOM_RB_GET_VCXO_STATUS,
+            1.0);
         const uint32_t dac_value = status >> 16;
         uint64_t response = _local_bus->poke32_ack_value(
-            CUSTOM_SET_VCXO_DAC_VALUE, dac_value, 1.0);
+            _is_e100 ? CUSTOM_SET_E100_VCXO_DAC_VALUE : CUSTOM_SET_VCXO_DAC_VALUE,
+            dac_value, 1.0);
         if (response == 0u) {
             response = _local_bus->poke32_ack_value(
-                CUSTOM_SET_VCXO_REF_SOURCE,
+                _is_e100 ? CUSTOM_SET_E100_VCXO_REF_SOURCE : CUSTOM_SET_VCXO_REF_SOURCE,
                 static_cast<uint32_t>(E200Impl::VcxoReferenceSource::manual_dac),
                 1.0);
         }

@@ -53,7 +53,10 @@ inline uint16_t encode_tx_seq_flags(uint16_t sequence,
 {
     uint16_t value = sequence & SDR_TX_SEQ_MASK;
     if (!flags_valid) {
-        return sequence;
+        // Legacy/native callers do not supply TX metadata flags.  Keep their
+        // packet counter in the same 12-bit sequence field so that counter
+        // bits can never be mistaken for protocol-v1/SOB/EOB/time flags.
+        return value;
     }
     value |= SDR_TX_FLAG_PROTOCOL_V1;
     if (has_time) value |= SDR_TX_FLAG_HAS_TIME;

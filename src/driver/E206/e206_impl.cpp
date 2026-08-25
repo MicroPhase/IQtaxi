@@ -1,31 +1,18 @@
 #include "./e206_impl.hpp"
 #include "../E100/local_e100_regs.hpp"
+#include "include/sdr/api/SampleRates.hpp"
 
 #include <algorithm>
-#include <array>
 #include <stdexcept>
 
 namespace {
-constexpr std::array<uint32_t, 10> kE206SupportedSampleRates = {
-    1920000u,
-    3840000u,
-    5760000u,
-    7680000u,
-    11520000u,
-    15360000u,
-    23040000u,
-    30720000u,
-    61440000u,
-    122880000u,
-};
-
 uint32_t nearest_e206_sample_rate(double rate)
 {
     const uint32_t requested_rate = rate <= 0.0 ? 0u : static_cast<uint32_t>(rate + 0.5);
 
     return *std::min_element(
-        kE206SupportedSampleRates.begin(),
-        kE206SupportedSampleRates.end(),
+        sdr::api::kGc080xLegacySampleRatesHz.begin(),
+        sdr::api::kGc080xLegacySampleRatesHz.end(),
         [requested_rate](uint32_t lhs, uint32_t rhs) {
             const uint32_t lhs_delta =
                 lhs > requested_rate ? lhs - requested_rate : requested_rate - lhs;

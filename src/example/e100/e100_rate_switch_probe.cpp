@@ -14,7 +14,7 @@ namespace {
 
 struct ProbeConfig {
     std::string addr = "192.168.1.10";
-    uint32_t sample_rate_hz = 46080000u;
+    uint32_t sample_rate_hz = 15360000u;
     uint64_t rx_lo_hz = 2450000000ull;
     uint64_t tx_lo_hz = 1000000000ull;
     uint32_t rx_gain = 30u;
@@ -29,7 +29,10 @@ void print_usage()
     std::cout
         << "Usage: e100_rate_switch_probe [options]\n"
         << "  --addr <ip>               device IP, default 192.168.1.10\n"
-        << "  --sample-rate <hz>        target sample rate, default 46080000\n"
+        << "  --sample-rate <hz>        target sample rate, default 15360000\n"
+        << "                            supported: 1920000, 3840000, 5760000,\n"
+        << "                            7680000, 11520000, 15360000, 23040000,\n"
+        << "                            30720000, 61440000, 122880000\n"
         << "  --rx-lo <hz>              RX LO for post-config step\n"
         << "  --tx-lo <hz>              TX LO for post-config step\n"
         << "  --rx-gain <idx>           RX gain for post-config step\n"
