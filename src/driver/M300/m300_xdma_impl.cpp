@@ -78,6 +78,9 @@ M300XdmaImpl::M300XdmaImpl(const std::string& device_path, bool open_data_channe
 {
     parse_device_path(device_path);
 
+    // Lock before opening any XDMA channel or issuing a control request.
+    acquire_exclusive_access("M300_XDMA", _device_path.empty() ? "/dev/xdma0" : _device_path);
+
     const auto ctrl_params = make_xport_params(kDefaultRecvFrames, kDefaultSendFrames,
                                                32u, 32u);
     _ctrl_xport = xdma_zero_copy::make(

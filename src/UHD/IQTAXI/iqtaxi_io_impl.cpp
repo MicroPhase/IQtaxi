@@ -13,6 +13,13 @@ uhd::rx_streamer::sptr iqtaxi_impl::get_rx_stream(const uhd::stream_args_t& args
 {
     std::lock_guard<std::mutex> lock(_transport_setup_mutex);
 
+    // A streamer owns the device's RX stream epoch. Creating another one
+    // while the first is alive would reset RX mode and drain its packets.
+    if (_rx_streamer.lock()) {
+        throw uhd::runtime_error(
+            "IQTAXI RX stream is already owned by another caller");
+    }
+
     UHD_LOGGER_INFO("IQTAXI RX streamer") << (boost::format("get rx streamer."));
     stream_args_t args = args_;
 
@@ -81,6 +88,11 @@ uhd::rx_streamer::sptr iqtaxi_impl::get_rx_stream(const uhd::stream_args_t& args
 
 uhd::tx_streamer::sptr iqtaxi_impl::get_tx_stream(const uhd::stream_args_t& args_){
     std::lock_guard<std::mutex> lock(_transport_setup_mutex);
+
+    if (_tx_streamer.lock()) {
+        throw uhd::runtime_error(
+            "IQTAXI TX stream is already owned by another caller");
+    }
 
     stream_args_t args = args_;
 

@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -52,6 +53,7 @@ class iqtaxi_rx_streamer : public uhd::rx_streamer {
 
     void issue_stream_cmd(const stream_cmd_t& stream_cmd) override
     {
+        std::lock_guard<std::mutex> command_lock(_stream_cmd_mutex);
         trace("issue_cmd",
               "mode=" + std::to_string(static_cast<int>(stream_cmd.stream_mode)) +
                   " now=" + std::to_string(stream_cmd.stream_now ? 1 : 0) +
@@ -76,6 +78,12 @@ class iqtaxi_rx_streamer : public uhd::rx_streamer {
                 _rx_stream->set_recv_param(rx_mode,stream_cmd.num_samps,ticks,1,0);
             }
         } else if (stream_cmd.stream_mode == stream_cmd_t::STREAM_MODE_START_CONTINUOUS) {
+                // Do not let a second caller reset the active FPGA epoch.
+                // Repeated START commands for one streamer are harmless.
+                if (!_rx_stopped.load()) {
+                    trace("start_ignored", "stream already active");
+                    return;
+                }
                 rx_mode = STREAM_MODE;
                 // Define a new hardware stream epoch even if a previous host
                 // exited without sending STOP.  This prevents old packets and
@@ -96,7 +104,10 @@ class iqtaxi_rx_streamer : public uhd::rx_streamer {
                 _timeout_logs = 0;
                 trace("start_done", "active_samps=" + std::to_string(_active_stream_samps));
         } else if (stream_cmd.stream_mode == stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS) {
-                _rx_stopped = true;
+                if (_rx_stopped.exchange(true)) {
+                    trace("stop_ignored", "stream already stopped");
+                    return;
+                }
                 uint64_t timestampe = 0;
                 _rx_stream->set_recv_param(STREAM_MODE, _active_stream_samps, timestampe, 0, 1);
                 _rx_stream->set_rx_mode_exit();
@@ -271,6 +282,7 @@ private:
 
     void stop_stream_noexcept() noexcept
     {
+        std::lock_guard<std::mutex> command_lock(_stream_cmd_mutex);
         if (_rx_stopped.exchange(true)) {
             return;
         }
@@ -342,6 +354,7 @@ private:
     size_t _convert_bytes_to_copy;
 
     std::atomic<bool> _rx_stopped{true};
+    std::mutex _stream_cmd_mutex;
     std::atomic<bool> _first_packet_logged{false};
     std::atomic<unsigned int> _timeout_logs{0};
 

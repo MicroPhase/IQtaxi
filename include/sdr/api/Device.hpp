@@ -66,6 +66,16 @@ namespace sdr::api{
         // virtual std::shared_ptr<local_ctrl> get_local_bus() = 0;
         // virtual std::shared_ptr<local_ctrl> get_rx_stream_bus() = 0;
         // virtual std::shared_ptr<local_ctrl> get_tx_stream_bus() = 0;
+
+    protected:
+        void acquire_exclusive_access(const std::string& backend,
+                                      const std::string& address);
+
+    private:
+        // Kept type-erased so the public header remains platform-neutral.
+        // A backend constructor installs an OS-level lease here before it
+        // creates transports or sends commands to the hardware.
+        std::shared_ptr<void> _exclusive_access_lease;
     };
 }
 

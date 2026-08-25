@@ -65,6 +65,12 @@ private:
     zero_copy_if::sptr _udp_ctrl,_udp_rx_stream,_udp_tx_stream;
     std::shared_ptr<local_ctrl> _local_bus,_rx_stream_bus,_tx_stream_bus;
 
+    // A device has one RX and one TX data path. Keep the native stream
+    // objects attached to the device so a second get_*_stream() call cannot
+    // reset the FPGA state of an active stream.
+    rx_streamer::sptr _rx_stream;
+    tx_streamer::sptr _tx_stream;
+
     std::mutex _transport_setup_mutex;
     std::mutex _settings_mutex;
     bool _sample_rate_valid = false;

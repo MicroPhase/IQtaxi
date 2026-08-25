@@ -6,6 +6,8 @@
 #include <atomic>
 #include <cstdlib>
 #include <iostream>
+#include <mutex>
+#include <thread>
 
 using namespace uhd;
 using namespace uhd::transport;
@@ -115,6 +117,8 @@ public:
         const uhd::tx_metadata_t& metadata,
         const double timeout) override
     {
+        std::lock_guard<std::mutex> send_lock(_send_mutex);
+        claim_send_owner();
         (void)timeout;
         uhd::tx_metadata_t effective_metadata = metadata;
 
@@ -250,6 +254,21 @@ public:
 
 
 private:
+    void claim_send_owner()
+    {
+        const std::thread::id caller = std::this_thread::get_id();
+        std::lock_guard<std::mutex> lock(_owner_mutex);
+        if (!_owner_valid) {
+            _owner = caller;
+            _owner_valid = true;
+            return;
+        }
+        if (_owner != caller) {
+            throw uhd::runtime_error(
+                "IQTAXI TX stream is already active in another thread");
+        }
+    }
+
     static constexpr uint64_t kMaxTraceCalls = 40;
     static constexpr uint64_t kTracePeriodCalls = 1000;
 
@@ -351,6 +370,10 @@ size_t _header_offset_words32;
     bool _metadata_cached = false;
     uhd::tx_metadata_t _cached_metadata;
     std::atomic<uint64_t> _trace_calls{0};
+    std::mutex _send_mutex;
+    std::mutex _owner_mutex;
+    std::thread::id _owner;
+    bool _owner_valid = false;
 };
 
 #endif

@@ -55,6 +55,10 @@ void IqtaxiUdpImpl::send_tx_hello()
 IqtaxiUdpImpl::IqtaxiUdpImpl(const std::string port, const DeviceProfile& profile)
     : _profile(profile)
 {
+    // Acquire the process-wide device lease before opening sockets or sending
+    // HELLO/control packets. This also protects callers that instantiate a
+    // concrete E-series backend directly instead of using Device::makeDevice.
+    acquire_exclusive_access(_profile.product, port);
     if(! iqtaxi_udp_init(port))
     {
         printf("IQTAXI UDP init failed\n");
@@ -132,22 +136,18 @@ const DeviceProfile& IqtaxiUdpImpl::get_profile() const
 
 rx_streamer::sptr IqtaxiUdpImpl::get_rx_stream() {
     std::lock_guard<std::mutex> lock(_transport_setup_mutex);
-
-    std::shared_ptr<recv_packet_streamer> my_stream;
-    if(! my_stream)
-        my_stream = std::make_shared<recv_packet_streamer>(_local_bus,_rx_stream_bus);
-
-    return my_stream;
+    if (!_rx_stream) {
+        _rx_stream = std::make_shared<recv_packet_streamer>(_local_bus, _rx_stream_bus);
+    }
+    return _rx_stream;
 }
 
 tx_streamer::sptr IqtaxiUdpImpl::get_tx_stream(){
     std::lock_guard<std::mutex> lock(_transport_setup_mutex);
-
-    std::shared_ptr<send_packet_streamer> my_stream;
-    if(! my_stream)
-        my_stream = std::make_shared<send_packet_streamer>(_local_bus,_tx_stream_bus);
-
-    return my_stream;
+    if (!_tx_stream) {
+        _tx_stream = std::make_shared<send_packet_streamer>(_local_bus, _tx_stream_bus);
+    }
+    return _tx_stream;
 }
 
 void IqtaxiUdpImpl::setTimestamp(uint64_t time_stamp, uint32_t mode) {
