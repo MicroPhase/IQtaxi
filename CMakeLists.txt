@@ -40,4 +40,14 @@ else()
     if(ENABLE_SDRPP_IQTAXI)
         add_subdirectory(src/sdr++)
     endif()
+
+# CMake installs are recorded in install_manifest.txt. Provide the matching
+# removal target so users can run `sudo make uninstall` from the build tree.
+configure_file(
+    "${CMAKE_SOURCE_DIR}/cmake/cmake_uninstall.cmake.in"
+    "${CMAKE_BINARY_DIR}/cmake_uninstall.cmake"
+    IMMEDIATE @ONLY)
+add_custom_target(uninstall
+    COMMAND "${CMAKE_COMMAND}" -P "${CMAKE_BINARY_DIR}/cmake_uninstall.cmake"
+    COMMENT "Removing installed IQTAXI files")
 endif()

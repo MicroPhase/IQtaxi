@@ -7,3 +7,4 @@ CMakeSettings.json
 cmake-build-custom/
 cmake-build-debug/
 build-codex
+cmake/
