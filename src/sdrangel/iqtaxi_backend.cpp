@@ -62,3 +62,13 @@ bool IqtaxiBackend::running() const
 {
     return _worker.running();
 }
+
+std::string IqtaxiBackend::rf_band() const
+{
+    return _worker.rf_band();
+}
+
+std::string IqtaxiBackend::board_label() const
+{
+    return _worker.board_label();
+}

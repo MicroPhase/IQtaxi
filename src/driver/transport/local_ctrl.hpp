@@ -125,9 +125,13 @@ private:
     uint32_t * _recv_buf;
     uint32_t _rx_buf_len;
     uint32_t _tx_buf_len;
+    uint32_t _last_ctrl_addr = 0;
+    bool _last_ctrl_is_read = false;
 
     zero_copy_if::sptr& _xport;
     std::mutex _ctrl_mutex;
+
+    [[noreturn]] void throw_ctrl_timeout(double timeout, const char* reason) const;
 };
 
 

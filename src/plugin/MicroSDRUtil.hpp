@@ -13,6 +13,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <map>
+#include "include/sdr/api/UdpDiscover.hpp"
 
 #ifdef _WIN32
     #include <winsock2.h>
@@ -42,11 +43,4 @@ typedef std::vector<Kwargs> KwargsList;
 #define    MICROPHASE_NAME_E200 "E200"
 #define    MICROPHASE_NAME_E206 "E206"
 
-#pragma pack(push,1)
-typedef struct{
-    char check[16];
-    char name[16];
-    uint8_t serial_number[32];
-    uint8_t board_version[8];
-} unit_t;
-#pragma pack(pop)
+using unit_t = sdr::api::IqtaxiUdpDiscoverPacket;

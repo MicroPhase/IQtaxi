@@ -4,9 +4,12 @@
 #include "src/driver/E100/e100_impl.hpp"
 #include "src/driver/E100/local_e100_regs.hpp"
 #include "src/driver/M300/m300_tx_streamer.hpp"
+#include "include/sdr/api/DeviceProfile.hpp"
 #include <map>
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
+#include <iostream>
 #include <stdexcept>
 
 namespace {
@@ -63,6 +66,15 @@ void device_context::ensure_open()
     device = sdr::api::Device::makeDevice(device_name, addr);
     if (!device) {
         throw std::runtime_error("failed to open IQTAXI device " + device_name + " at " + addr);
+    }
+    const auto& profile = device->get_profile();
+    if (profile.product == "E100") {
+        std::cout << "IQTAXI opened " << sdr::api::e100_display_name(profile)
+                  << " RF "
+                  << static_cast<uint64_t>(profile.rx_frequency_hz.minimum)
+                  << " .. "
+                  << static_cast<uint64_t>(profile.rx_frequency_hz.maximum)
+                  << " Hz" << std::endl;
     }
 }
 

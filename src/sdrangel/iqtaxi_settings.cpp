@@ -13,9 +13,15 @@ uint32_t abs_u32_delta(uint32_t a, uint32_t b)
 
 const IqtaxiDeviceCaps *iqtaxiDeviceCapsByModel(const std::string &model)
 {
+    std::string resolved = model;
+    if (model == "E100-6G" || model == "E100-10G" ||
+        model == "E100_6G" || model == "E100_10G")
+    {
+        resolved = "E100";
+    }
     for (std::size_t i = 0; i < kIqtaxiDeviceCapsCount; ++i)
     {
-        if (model == kIqtaxiDeviceCaps[i].model)
+        if (resolved == kIqtaxiDeviceCaps[i].model)
         {
             return &kIqtaxiDeviceCaps[i];
         }
@@ -45,7 +51,35 @@ std::string iqtaxiModelFromHardwareId(const std::string &hardware_id)
     {
         return caps->model;
     }
+    if (hardware_id.find("E100") != std::string::npos ||
+        hardware_id.find("e100") != std::string::npos)
+    {
+        return "E100";
+    }
     return "E206";
+}
+
+std::string iqtaxiFactoryDeviceName(const std::string &model)
+{
+    if (const IqtaxiDeviceCaps *caps = iqtaxiDeviceCapsByModel(model))
+    {
+        return caps->factory_name;
+    }
+    if (model.find("E100") != std::string::npos ||
+        model.find("e100") != std::string::npos)
+    {
+        return "E100";
+    }
+    return model;
+}
+
+uint64_t iqtaxiMaxCenterFreqHz(const std::string &model)
+{
+    if (const IqtaxiDeviceCaps *caps = iqtaxiDeviceCapsByModel(model))
+    {
+        return caps->max_freq_hz;
+    }
+    return 6000000000ull;
 }
 
 bool IqtaxiSettings::is_valid() const

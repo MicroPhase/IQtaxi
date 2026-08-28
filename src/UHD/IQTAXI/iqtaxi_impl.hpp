@@ -27,6 +27,7 @@
 #include "../../driver/E200/e200_impl.hpp"
 #include "../../driver/M300/m300_xdma_impl.hpp"
 #include "../../../include/sdr/api/Device.hpp"
+#include "../../../include/sdr/api/UdpDiscover.hpp"
 #include "../../driver/transport/super_recv_packet_handler.hpp"
 #include "../../driver/transport/super_send_packet_handler.hpp"
 #include "../../driver/E100/local_e100_regs.hpp"
@@ -53,12 +54,7 @@ using namespace e100;
 
 #define    MICROPHASE_RX_WAZZUP_BR0 "r"
 
-typedef struct {
-    char check[16];
-    char name[16];
-    uint8_t serial_number[32];
-    uint8_t board_version[8];
-} microphase_e100_ctrl_data_t;
+using microphase_e100_ctrl_data_t = sdr::api::IqtaxiUdpDiscoverPacket;
 
 static const uint8_t e100_FW_COMPAT_NUM_MAJOR = 8;
 static const uint8_t e100_FW_COMPAT_NUM_MINOR = 0;
@@ -117,6 +113,7 @@ private:
     } _time_source;
     sdr::api::Device::sptr iqtaxi_device;
     const DeviceProfile* _profile = &e100_udp_profile();
+    std::string _product_name = MICROPHASE_NAME_E100;
     bool _is_m300 = false;
     bool _is_e100 = true;
     bool _ignore_tx_timestamps = true;
@@ -184,6 +181,8 @@ private:
 	double getGain(const uhd::direction_t dir, const size_t channel);
 	void setGain(const uhd::direction_t dir, const size_t channel, const double gain);
 	uhd::meta_range_t getGainRange(const uhd::direction_t dir, const size_t chan, const std::string &name);
+	void setAmpEnable(bool enable);
+	bool getAmpEnable();
 
     void update_bandsel(const std::string& which, double freq);
 	double getFrequency(const uhd::direction_t dir, const size_t channel, const std::string &name);

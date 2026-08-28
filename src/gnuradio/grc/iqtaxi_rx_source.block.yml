@@ -9,7 +9,7 @@ parameters:
   dtype: enum
   default: '"E206"'
   options: ['"E100"', '"E200"', '"E206"', '"M300_XDMA"', '"FNIC_XDMA"']
-  option_labels: [E100 (MP2021), E200 (AD9361), E206 (MP2021), M300 (PCIe), FNIC (PCIe)]
+  option_labels: [E100 (GC080x 6G/10G), E200 (AD9361), E206 (MP2021), M300 (PCIe), FNIC (PCIe)]
 - id: addr
   label: Address
   dtype: string

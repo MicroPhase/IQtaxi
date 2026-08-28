@@ -2,12 +2,35 @@
 #include "include/sdr/api/SampleRates.hpp"
 #include "src/driver/M300/m300_xdma_impl.hpp"
 
+#include <cstdint>
 #include <exception>
 #include <mutex>
+#include <string>
 
 const sdr::api::DeviceProfile& IQTaxiDevice::profile() const
 {
     return device ? device->get_profile() : sdr::api::e100_udp_profile();
+}
+
+std::string IQTaxiDevice::getHardwareKey() const
+{
+    return e100_display_name(profile());
+}
+
+SoapySDR::Kwargs IQTaxiDevice::getHardwareInfo() const
+{
+    SoapySDR::Kwargs info;
+    const auto& device_profile = profile();
+    info["product"] = device_profile.product;
+    info["frontend"] = device_profile.rf_frontend;
+    if (!device_profile.rf_band.empty()) {
+        info["rf_band"] = device_profile.rf_band;
+    }
+    info["rx_max_hz"] = std::to_string(
+        static_cast<uint64_t>(device_profile.rx_frequency_hz.maximum));
+    info["tx_max_hz"] = std::to_string(
+        static_cast<uint64_t>(device_profile.tx_frequency_hz.maximum));
+    return info;
 }
 
 size_t IQTaxiDevice::getNumChannels(int direction) const
@@ -36,28 +59,14 @@ std::vector<double> IQTaxiDevice::listSampleRates( const int direction, const si
         return options;
     }
 
-    options.push_back(122.88e6);
-    options.push_back(61.44e6);
-    options.push_back(30.72e6);
-    options.push_back(15.36e6);
-    options.push_back(7.68e6);
-    options.push_back(3.84e6);
-    options.push_back(1.92e6);
-    options.push_back(46.08e6);
-    options.push_back(23.04e6);
-    options.push_back(11.52e6);
-    options.push_back(5.76e6);
-    options.push_back(80.00e6);
-    options.push_back(40.00e6);
-    options.push_back(20.00e6);
-    options.push_back(10.00e6);
-    options.push_back(5.00e6);
-    options.push_back(64.00e6);
-    options.push_back(32.00e6);
-    options.push_back(16.00e6);
-    options.push_back(8.00e6);
-    options.push_back(4.00e6);
-    options.push_back(2.00e6);
+    if (product == "E200") {
+        return {
+            1.92e6, 2.00e6, 3.84e6, 4.00e6, 5.00e6, 5.76e6,
+            7.68e6, 8.00e6, 10.00e6, 11.52e6, 15.36e6, 16.00e6,
+            20.00e6, 23.04e6, 30.72e6, 32.00e6, 40.00e6, 46.08e6,
+            61.44e6,
+        };
+    }
 
 	return(options);
 }
@@ -165,6 +174,16 @@ SoapySDR::RangeList IQTaxiDevice::getBandwidthRange(int direction, size_t channe
 std::vector<std::string> IQTaxiDevice::listAntennas( const int direction, const size_t channel ) const
 {
 	std::vector<std::string> options;
+    if (profile().product == "E100") {
+        if (direction == SOAPY_SDR_RX) {
+            options.push_back("TX/RX");
+            options.push_back("RX2");
+        }
+        if (direction == SOAPY_SDR_TX) {
+            options.push_back("TX/RX");
+        }
+        return options;
+    }
 	if(direction == SOAPY_SDR_RX) options.push_back( "RX1" );
 	if(direction == SOAPY_SDR_TX) options.push_back( "TX1" );
 	return(options);
@@ -185,16 +204,17 @@ void IQTaxiDevice::setAntenna( const int direction, const size_t channel, const 
 
 std::string IQTaxiDevice::getAntenna( const int direction, const size_t channel ) const
 {
-	std::string options;
+	if (profile().product == "E100") {
+		return (direction == SOAPY_SDR_RX) ? "RX2" : "TX/RX";
+	}
 
 	if (direction == SOAPY_SDR_RX) {
-		options = "RX1";
+		return "RX1";
 	}
-	else if (direction == SOAPY_SDR_TX) {
-
-		options = "TX1";
+	if (direction == SOAPY_SDR_TX) {
+		return "TX1";
 	}
-	return options;
+	return {};
 }
 
 std::vector<std::string> IQTaxiDevice::listFrequencies( const int direction, const size_t channel ) const

@@ -24,6 +24,8 @@ public:
     bool apply_settings(const IqtaxiSettings &settings);
     IqtaxiSettings settings() const;
     bool running() const;
+    std::string rf_band() const;
+    std::string board_label() const;
 
 private:
     mutable std::mutex _mutex;

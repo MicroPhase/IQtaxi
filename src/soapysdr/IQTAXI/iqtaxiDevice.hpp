@@ -41,6 +41,9 @@ public:
     std::vector<std::string> getStreamFormats(int direction, size_t channel) const;
     std::string getNativeStreamFormat(int direction, size_t channel, double &fullScale) const;
 
+    std::string getHardwareKey() const override;
+    SoapySDR::Kwargs getHardwareInfo() const override;
+
     SoapySDR::RangeList getFrequencyRange( const int direction, const size_t channel, const std::string &name ) const;
     std::vector<std::string> listFrequencies( const int direction, const size_t channel ) const;
     void setFrequency(int direction, size_t channel, const std::string &name, double frequency, const SoapySDR::Kwargs &args) ;

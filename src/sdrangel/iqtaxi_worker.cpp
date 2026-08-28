@@ -1,5 +1,7 @@
 #include "iqtaxi_worker.h"
 
+#include "include/sdr/api/DeviceProfile.hpp"
+
 #include <chrono>
 #include <exception>
 #include <thread>
@@ -137,7 +139,8 @@ bool IqtaxiWorker::open_device(const IqtaxiSettings &settings)
     std::lock_guard<std::mutex> lock(_device_mutex);
     try
     {
-        _device = sdr::api::Device::makeDevice(settings.device_model, settings.device_addr);
+        const std::string factory_name = iqtaxiFactoryDeviceName(settings.device_model);
+        _device = sdr::api::Device::makeDevice(factory_name, settings.device_addr);
         if (!_device)
         {
             if (_on_error)
@@ -333,4 +336,37 @@ void IqtaxiWorker::worker_loop()
     }
     _rx_stream.reset();
     // Keep _device alive for sample-rate hot restart / freq/gain hot apply.
+}
+
+std::string IqtaxiWorker::rf_band() const
+{
+    std::lock_guard<std::mutex> lock(_device_mutex);
+    if (!_device) {
+        return {};
+    }
+    const auto &profile = _device->get_profile();
+    if (profile.product != "E100") {
+        return {};
+    }
+    if (!profile.rf_band.empty()) {
+        return profile.rf_band;
+    }
+    return sdr::api::e100_rf_band_from_max_hz(profile.rx_frequency_hz.maximum);
+}
+
+std::string IqtaxiWorker::board_label() const
+{
+    std::lock_guard<std::mutex> lock(_device_mutex);
+    if (!_device) {
+        return {};
+    }
+    const auto &profile = _device->get_profile();
+    if (profile.product == "E100") {
+        std::string band = profile.rf_band;
+        if (band.empty()) {
+            band = sdr::api::e100_rf_band_from_max_hz(profile.rx_frequency_hz.maximum);
+        }
+        return band.empty() ? std::string("E100") : ("E100-" + band);
+    }
+    return profile.product;
 }

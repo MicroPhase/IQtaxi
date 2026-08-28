@@ -5,6 +5,7 @@
 #include "imgui.h"
 #include "backends/imgui_impl_glfw.h"
 #include "backends/imgui_impl_opengl3.h"
+#include "include/sdr/api/UdpDiscover.hpp"
 
 #include <algorithm>
 #include <arpa/inet.h>
@@ -66,12 +67,7 @@ struct GuiState {
     bool error = false;
 };
 
-struct MicrophaseDiscoverPacket {
-    char check[16];
-    char name[16];
-    std::uint8_t serial_number[32];
-    std::uint8_t board_version[8];
-};
+using MicrophaseDiscoverPacket = sdr::api::IqtaxiUdpDiscoverPacket;
 
 class TcpClient {
 public:
@@ -686,6 +682,7 @@ static void send_discover_request(GuiState& state, int port)
                 continue;
             }
             const bool is_known_device =
+                std::strncmp(response.name, "E100", 4) == 0 ||
                 std::strncmp(response.name, "E206", 4) == 0 ||
                 std::strncmp(response.name, "E200", 4) == 0;
             if (std::strncmp(response.check, "MicroPhase", sizeof(response.check)) != 0 ||

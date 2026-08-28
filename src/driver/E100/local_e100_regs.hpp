@@ -4,32 +4,34 @@
 #include "cstdint"
 
 namespace e100{
+    /* Keep SET/RB addresses identical to firmware e100_manager.h. */
+    constexpr uint32_t CUSTOM_SET_CMD_PORT                    =  0x0404;
+    constexpr uint32_t CUSTOM_SET_DATA_PORT                   =  0x0405;
+
     constexpr uint32_t CUSTOM_SET_RX_CH1_GAIN_ADDR            =  0x0000;
     constexpr uint32_t CUSTOM_SET_RX_CH2_GAIN_ADDR            =  0x0001;
     constexpr uint32_t CUSTOM_SET_TX_CH1_ATTEN_ADDR            =  0x0002;
     constexpr uint32_t CUSTOM_SET_TX_CH2_ATTEN_ADDR            =  0x0003;
     constexpr uint32_t CUSTOM_SET_RX_CH1_AGC_MODE_ADDR        =  0x0004;
     constexpr uint32_t CUSTOM_SET_RX_CH2_AGC_MODE_ADDR        =  0x0005;
- 
+
     constexpr uint32_t CUSTOM_SET_SAMPLE_CLOCK_RATE_ADDR      =  0x0006;
- 
     constexpr uint32_t CUSTOM_SET_ACTIVE_CHANNEL_ADDR         =  0x0007;
- 
- 
+
+    /* E200 SET: 32-bit LO split. E100 firmware does not use these. */
     constexpr uint32_t CUSTOM_SET_RX_CH1_LO_FREQ_LOW_ADDR     =  0x0008;
     constexpr uint32_t CUSTOM_SET_RX_CH1_LO_FREQ_HIGH_ADDR    =  0x0009;
     constexpr uint32_t CUSTOM_SET_TX_CH1_LO_FREQ_LOW_ADDR     =  0x000a;
     constexpr uint32_t CUSTOM_SET_TX_CH1_LO_FREQ_HIGH_ADDR    =  0x000b;
- 
+
     constexpr uint32_t CUSTOM_SET_TIMING_MODE_ADDR            =  0x000c;
     constexpr uint32_t CUSTOM_SET_TIME_MODE_ADDR              =  0x000d;
     constexpr uint32_t CUSTOM_SET_VITA_TIMESTAMP_LOW_ADDR     =  0x000e;
     constexpr uint32_t CUSTOM_SET_VITA_TIMESTAMP_HIGH_ADDR    =  0x000f;
     constexpr uint32_t CUSTOM_SET_TX_TIMESTAMP_LOW_ADDR       =  0x0010;
     constexpr uint32_t CUSTOM_SET_TX_TIMESTAMP_HIGH_ADDR      =  0x0011;
- 
+
     constexpr uint32_t CUSTOM_SET_CHANNEL_ENABLE_ADDR         =  0x0012;
- 
     constexpr uint32_t CUSTOM_SET_RX_SAMPLE_NUMS_ADDR         =  0x0013;
     constexpr uint32_t CUSTOM_SET_CAPTURE_START_ADDR          =  0x0014;
     constexpr uint32_t CUSTOM_SET_RX_MODE                     =  0x0015;
@@ -41,22 +43,23 @@ namespace e100{
     constexpr uint32_t CUSTOM_SET_START_RX                    =  0x001b;
     constexpr uint32_t CUSTOM_SET_STOP_RX                     =  0x001c;
     constexpr uint32_t CUSTOM_SET_DMA_S2MM_PKT_PER_BURST      =  0x001d;
- 
+
     constexpr uint32_t CUSTOM_SET_TX_SAMPLES_PER_PACKET       =  0x001e;
     constexpr uint32_t CUSTOM_SET_TX_SOURCE_SEL               =  0x001f;
     constexpr uint32_t CUSTOM_SET_TX_IGNORE_TIMESTAMPS        =  0x0020;
     constexpr uint32_t CUSTOM_SET_TX_NOISE_CFG_START_IDX      =  0x0021;
     constexpr uint32_t CUSTOM_SET_TX_NOISE_CFG_STOP_IDX       =  0x0022;
     constexpr uint32_t CUSTOM_SET_TX_DDS_CTRL_WORD            =  0x0023;
- 
+
     constexpr uint32_t CUSTOM_SET_SWAP_IQ                     =  0x0024;
     constexpr uint32_t CUSTOM_SET_START_TX                    =  0x0025;
     constexpr uint32_t CUSTOM_SET_STOP_TX                     =  0x0026;
- 
+
     constexpr uint32_t CUSTOM_SET_XFFT_ENABLE_ADDR            =  0x0027;
     constexpr uint32_t CUSTOM_SET_XFFT_OVERLAP_ADDR           =  0x0028;
     constexpr uint32_t CUSTOM_SET_XFFT_FFT_LEN                =  0x0029;
     constexpr uint32_t CUSTOM_SET_TIME_SYNC                   =  0x002a;
+    constexpr uint32_t CUSTOM_SET_RF_FRONT_DSA_ATT            =  0x002b;
     constexpr uint32_t CUSTOM_SET_SAMPLE_RATE_DY              =  0x002c;
     constexpr uint32_t CUSTOM_SET_DMA_MODE                    =  0x002d;
     constexpr uint32_t CUSTOM_SET_LVDS_IF_RST                 =  0x002e;
@@ -72,38 +75,41 @@ namespace e100{
     constexpr uint32_t CUSTOM_SET_REPLAY_START                =  0x003a;
     constexpr uint32_t CUSTOM_SET_REPLAY_STOP                 =  0x003b;
     constexpr uint32_t CUSTOM_SET_REPLAY_DMA_WRITE_NEXT       =  0x003c;
+    constexpr uint32_t CUSTOM_SET_AMP_ENABLE                  =  0x003d;
+    /* Readback selector for peek32(SR_CORE_READBACK), not a SET address. */
+    constexpr uint32_t CUSTOM_GET_AMP_ENABLE                  =  0x003e;
+    /* E200/E206: same 0x003d/0x003e as AMP, VCXO control. */
     constexpr uint32_t CUSTOM_SET_VCXO_REF_SOURCE             =  0x003d;
     constexpr uint32_t CUSTOM_SET_VCXO_DAC_VALUE              =  0x003e;
     // E100 retains 0x003d/0x003e for its RF amplifier protocol.  Its VCXO
     // controls therefore use a separate, collision-free command pair.
     constexpr uint32_t CUSTOM_SET_E100_VCXO_REF_SOURCE        =  0x003f;
     constexpr uint32_t CUSTOM_SET_E100_VCXO_DAC_VALUE         =  0x0040;
- 
+
     constexpr uint32_t CUSTOM_SET_RB_ADDR                     =  0x0030;
- 
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_GAIN_ADDR         =  0x0001;
     constexpr uint32_t CUSTOM_RB_GET_RX_CH2_GAIN_ADDR         =  0x0002;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH1_ATTEN_ADDR         =  0x0003;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH2_ATTEN_ADDR         =  0x0004;
- 
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_AGC_MODE_ADDR     =  0x0005;
     constexpr uint32_t CUSTOM_RB_GET_RX_CH2_AGC_MODE_ADDR     =  0x0006;
- 
     constexpr uint32_t CUSTOM_RB_GET_SAMPLE_CLOCK_RATE_ADDR   =  0x0007;
     constexpr uint32_t CUSTOM_RB_GET_ACTIVE_CHANNEL_ADDR      =  0x0008;
-
+    /* E100 64-bit LO / path. Same numeric slots as E200 32-bit split. */
+    constexpr uint32_t CUSTOM_RB_GET_E100_RX_CH1_LO_FREQ_ADDR =  0x0009;
+    constexpr uint32_t CUSTOM_RB_GET_RX_CH1_LO_PATH_ADDR      =  0x000a;
+    constexpr uint32_t CUSTOM_RB_GET_E100_TX_CH1_LO_FREQ_ADDR =  0x000b;
+    constexpr uint32_t CUSTOM_RB_GET_TX_CH1_LO_PATH_ADDR      =  0x000c;
+    /* E200 RB: 32-bit LO split. */
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_LO_FREQ_LOW_ADDR  =  0x0009;
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_LO_FREQ_HIGH_ADDR =  0x000a;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH1_LO_FREQ_LOW_ADDR  =  0x000b;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH1_LO_FREQ_HIGH_ADDR =  0x000c;
-
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_RSSI_ADDR         =  0x000d;
     constexpr uint32_t CUSTOM_RB_GET_RX_CH2_RSSI_ADDR         =  0x000e;
- 
     constexpr uint32_t CUSTOM_RB_GET_TIMING_MODE_ADDR         =  0x000f;
     constexpr uint32_t CUSTOM_RB_GET_VITA_TIME_ADDR           =  0x0010;
     constexpr uint32_t CUSTOM_RB_GET_VITA_TIME_LAST_PPS_ADDR  =  0x0011;
- 
     constexpr uint32_t CUSTOM_RB_GET_RX_PACKET                =  0x0012;
     constexpr uint32_t CUSTOM_RB_XFFT_ONE_BLOCK_ADDR          =  0x0013;
     constexpr uint32_t CUSTOM_RB_TX_STREAM_BUFFER_STATUS      =  0x0014;
@@ -116,8 +122,14 @@ namespace e100{
     constexpr uint32_t CUSTOM_RB_GET_REPLAY_LENGTH_BYTES      =  0x001b;
     constexpr uint32_t CUSTOM_RB_GET_REPLAY_DMA_OFFSET        =  0x001c;
     constexpr uint32_t CUSTOM_RB_GET_REPLAY_DMA_LAST_BYTES    =  0x001d;
+    /* E206 64-bit LO (ref/E200). Same numeric slots as E100 RF min/max. */
     constexpr uint32_t CUSTOM_RB_GET_RX_CH1_LO_FREQ_ADDR      =  0x001e;
     constexpr uint32_t CUSTOM_RB_GET_TX_CH1_LO_FREQ_ADDR      =  0x001f;
+    /* E100 EEPROM RF limits. */
+    constexpr uint32_t CUSTOM_RB_GET_RF_FREQ_MIN_ADDR         =  0x001e;
+    constexpr uint32_t CUSTOM_RB_GET_RF_FREQ_MAX_ADDR         =  0x001f;
+    constexpr uint32_t CUSTOM_RB_GET_BOARD_BAND_ADDR          =  0x0020;
+    /* E200/E206 VCXO status. Same 0x0020 as E100 board band. */
     constexpr uint32_t CUSTOM_RB_GET_VCXO_STATUS              =  0x0020;
     constexpr uint32_t CUSTOM_RB_GET_E100_VCXO_STATUS         =  0x0021;
 

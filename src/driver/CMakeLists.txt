@@ -2,6 +2,7 @@ if(ENABLE_WIN)
     set(TRANSPORT_SOURCES
         device.cpp
         IQTAXI/iqtaxi_udp_impl.cpp
+        IQTAXI/iqtaxi_udp_discover.cpp
         E100/e100_impl.cpp
         E200/e200_impl.cpp
         E206/e206_impl.cpp

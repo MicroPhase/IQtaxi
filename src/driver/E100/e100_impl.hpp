@@ -35,6 +35,7 @@ public:
     ~E100Impl() override = default;
 
     void setSampleRate(double rate) override;
+    void set_tx_freq(uint64_t tx_lo, size_t channel) override;
     void set_vcxo_reference_source(VcxoReferenceSource source);
     void set_vcxo_manual_dac(uint16_t value);
     VcxoStatus get_vcxo_status();
@@ -52,6 +53,9 @@ public:
     void configure_iq_replay(uint32_t length_bytes);
     void start_iq_replay(uint32_t length_bytes = 0);
     void stop_iq_replay();
+    void set_amp_enable(bool enable);
+    bool get_amp_enable();
+    void set_rf_front_dsa_att(uint32_t attenuation);
     uint32_t get_iq_replay_length_bytes();
     uint32_t get_iq_replay_dma_offset();
     uint32_t get_iq_replay_last_chunk_bytes();
@@ -68,10 +72,12 @@ protected:
 
 private:
     void send_replay_iq_payload(const void* src, uint32_t bytes, uint64_t seqno, double timeout_sec);
+    void poke_amp_enable(bool enable);
 
     zero_copy_if::sptr _record_udp;
     std::shared_ptr<local_ctrl> _record_data_bus;
-    uint32_t _replay_packet_gap_us = 25u;
+    uint32_t _replay_packet_gap_us = 100u;
+    bool _amp_enable = false;
 };
 
 #endif

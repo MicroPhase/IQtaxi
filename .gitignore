@@ -1,5 +1,6 @@
 build/
 build_win/
+build-win/
 .vs/
 .idea/
 .vscode/
@@ -7,4 +8,3 @@ CMakeSettings.json
 cmake-build-custom/
 cmake-build-debug/
 build-codex
-cmake/

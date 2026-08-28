@@ -11,6 +11,7 @@
 #include "include/sdr/api/Device.hpp"
 #include "include/sdr/api/DeviceProfile.hpp"
 #include "include/sdr/api/SampleRates.hpp"
+#include "include/sdr/api/UdpDiscover.hpp"
 
 #include <algorithm>
 #include <array>
@@ -73,6 +74,8 @@ constexpr double kE200Rates[] = {
 
 struct DeviceSpec {
     const char* name;
+    const char* product;
+    double max_freq_hz;
     const sdr::api::DeviceProfile& (*profile)();
     const double* rates;
     size_t rateCount;
@@ -80,9 +83,9 @@ struct DeviceSpec {
 };
 
 const DeviceSpec kDeviceSpecs[] = {
-    {"E100", &sdr::api::e100_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
-    {"E200", &sdr::api::e200_udp_profile, kE200Rates, std::size(kE200Rates), 30720000.0},
-    {"E206", &sdr::api::e206_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
+    {"E100", "E100", 10e9, &sdr::api::e100_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
+    {"E200", "E200", 6e9, &sdr::api::e200_udp_profile, kE200Rates, std::size(kE200Rates), 30720000.0},
+    {"E206", "E206", 6e9, &sdr::api::e206_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
 };
 
 constexpr int kDeviceCount = static_cast<int>(std::size(kDeviceSpecs));
@@ -109,6 +112,15 @@ int deviceIndexByName(const std::string& name)
 {
     for (int i = 0; i < kDeviceCount; i++) {
         if (name == kDeviceSpecs[i].name) {
+            return i;
+        }
+    }
+    if (name == "E100-6G" || name == "E100-10G" ||
+        name == "E100_6G" || name == "E100_10G") {
+        return 0;
+    }
+    for (int i = 0; i < kDeviceCount; i++) {
+        if (name == kDeviceSpecs[i].product) {
             return i;
         }
     }
@@ -172,6 +184,7 @@ public:
         config.release();
 
         applyDeviceCaps(false);
+        refreshFromDiscovery();
 
         handler.ctx = this;
         handler.selectHandler = menuSelected;
@@ -224,9 +237,53 @@ private:
         sampleRate = nearestRate(spec, sampleRate);
         srId = samplerates.keyId(sampleRate);
         gain = std::clamp(gain, gainMin(), gainMax());
+        freq = std::clamp(freq, 1.0, spec.max_freq_hz);
 
         if (persist) {
             saveConfig();
+        }
+    }
+
+    void rebuildDeviceLabels(const std::string& e100Label) {
+        const int keepId = std::clamp(deviceId, 0, kDeviceCount - 1);
+        devices.clear();
+        for (int i = 0; i < kDeviceCount; i++) {
+            std::string shown = kDeviceSpecs[i].name;
+            if (i == 0 && !e100Label.empty()) {
+                shown = e100Label;
+            }
+            devices.define(i, shown, std::string(kDeviceSpecs[i].product));
+        }
+        deviceId = keepId;
+    }
+
+    void refreshFromDiscovery() {
+        const auto found = sdr::api::iqtaxi_udp_discover(250);
+        std::string e100Label = "E100";
+        bool matched = false;
+        for (const auto& info : found) {
+            flog::info("IQTAXI: found {0} serial={1} version={2} at {3}",
+                       info.name, info.serial, info.board_version, info.addr);
+            if (info.name == "E100") {
+                e100Label = sdr::api::iqtaxi_model_label(info.name, info.board_version);
+                const std::string band = sdr::api::e100_rf_band_from_text(info.board_version);
+                if (!band.empty()) {
+                    rfBand = band;
+                    detectedMaxFreq = (band == "10G") ? 10e9 : 6e9;
+                }
+            }
+            if (!matched && info.name == currentSpec().product) {
+                std::strncpy(host, info.addr.c_str(), sizeof(host) - 1);
+                host[sizeof(host) - 1] = '\0';
+                matched = true;
+            }
+        }
+        rebuildDeviceLabels(e100Label);
+        if (matched) {
+            saveConfig();
+        }
+        if (found.empty()) {
+            flog::warn("IQTAXI: no UDP discovery response");
         }
     }
 
@@ -258,7 +315,7 @@ private:
         }
 
         try {
-            const std::string deviceName = self->currentSpec().name;
+            const std::string deviceName = self->currentSpec().product;
             auto device = sdr::api::Device::makeDevice(deviceName, self->host);
             if (!device) {
                 flog::error("IQTAXI: failed to open {0} at {1}", deviceName, self->host);
@@ -268,12 +325,27 @@ private:
             device->set_channel_enable(1u);
             device->set_dma_mode(0u);
             device->setSampleRate(self->sampleRate);
+            self->detectedMaxFreq = self->currentSpec().max_freq_hz;
+            const auto& opened_profile = device->get_profile();
+            if (opened_profile.rx_frequency_hz.maximum > 1.0) {
+                self->detectedMaxFreq = opened_profile.rx_frequency_hz.maximum;
+            }
+            self->rfBand = opened_profile.rf_band;
+            if (self->rfBand.empty() && opened_profile.product == "E100") {
+                self->rfBand = sdr::api::e100_rf_band_from_max_hz(
+                    opened_profile.rx_frequency_hz.maximum);
+            }
+            if (opened_profile.product == "E100" && !self->rfBand.empty()) {
+                self->rebuildDeviceLabels("E100-" + self->rfBand);
+            }
+            self->freq = std::clamp(self->freq, 1.0, self->detectedMaxFreq);
             device->set_rx_freq(static_cast<uint64_t>(self->freq + 0.5), 1);
             device->set_rx_gain(static_cast<uint32_t>(self->gain + 0.5f), 1);
 
             auto rx = device->get_rx_stream();
             if (!rx) {
                 flog::error("IQTAXI: failed to create RX stream");
+                self->cleanupDevice();
                 return;
             }
 
@@ -291,9 +363,10 @@ private:
 
             self->running.store(true);
             self->workerThread = std::thread(&IqtaxiSourceModule::worker, self);
-            flog::info("IqtaxiSourceModule '{0}': Start {1}@{2} {3} Hz gain {4}",
+            flog::info("IqtaxiSourceModule '{0}': Start {1}{2}@{3} {4} Hz gain {5}",
                        self->name,
-                       deviceName,
+                       self->currentSpec().name,
+                       self->rfBand.empty() ? std::string() : ("-" + self->rfBand),
                        self->host,
                        self->sampleRate,
                        self->gain);
@@ -336,7 +409,10 @@ private:
 
     static void tune(double freq, void* ctx) {
         auto* self = static_cast<IqtaxiSourceModule*>(ctx);
-        self->freq = freq;
+        const double maxHz = (self->detectedMaxFreq > 1.0)
+            ? self->detectedMaxFreq
+            : self->currentSpec().max_freq_hz;
+        self->freq = std::clamp(freq, 1.0, maxHz);
         if (!self->running.load()) {
             return;
         }
@@ -344,7 +420,7 @@ private:
         try {
             std::lock_guard<std::mutex> lock(self->deviceMutex);
             if (self->device) {
-                self->device->set_rx_freq(static_cast<uint64_t>(freq + 0.5), 1);
+                self->device->set_rx_freq(static_cast<uint64_t>(self->freq + 0.5), 1);
             }
         }
         catch (const std::exception& ex) {
@@ -371,6 +447,10 @@ private:
         SmGui::FillWidth();
         if (SmGui::InputText(CONCAT("##_iqtaxi_host_", self->name), self->host, sizeof(self->host))) {
             self->saveConfig();
+        }
+
+        if (SmGui::Button(CONCAT("Scan##_iqtaxi_scan_", self->name))) {
+            self->refreshFromDiscovery();
         }
 
         SmGui::LeftLabel("Sample Rate");
@@ -449,6 +529,8 @@ private:
         std::lock_guard<std::mutex> lock(deviceMutex);
         rxStream.reset();
         device.reset();
+        rfBand.clear();
+        detectedMaxFreq = 0.0;
     }
 
     std::string name;
@@ -470,6 +552,8 @@ private:
     std::mutex deviceMutex;
     sdr::api::Device::sptr device;
     sdr::api::rx_streamer::sptr rxStream;
+    std::string rfBand;
+    double detectedMaxFreq = 0.0;
 };
 
 MOD_EXPORT void _INIT_() {

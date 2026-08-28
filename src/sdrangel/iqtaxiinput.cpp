@@ -1,5 +1,6 @@
 #include "iqtaxiinput.h"
 
+#include <algorithm>
 #include <QDebug>
 #include <QMutexLocker>
 
@@ -12,6 +13,7 @@
 MESSAGE_CLASS_DEFINITION(IqtaxiInput::MsgConfigureIqtaxi, Message)
 MESSAGE_CLASS_DEFINITION(IqtaxiInput::MsgStartStop, Message)
 MESSAGE_CLASS_DEFINITION(IqtaxiInput::MsgReportError, Message)
+MESSAGE_CLASS_DEFINITION(IqtaxiInput::MsgReportRfBand, Message)
 
 IqtaxiInput::IqtaxiInput(DeviceAPI *deviceAPI) :
     _deviceAPI(deviceAPI),
@@ -19,11 +21,8 @@ IqtaxiInput::IqtaxiInput(DeviceAPI *deviceAPI) :
     _running(false)
 {
     const QString hardwareId = deviceAPI ? deviceAPI->getHardwareId() : QString();
-    const QString serial = deviceAPI ? deviceAPI->getSamplingDeviceSerial() : QString();
-    const std::string modelHint = !serial.isEmpty()
-        ? serial.toStdString()
-        : hardwareId.toStdString();
-    _settings.device_model = iqtaxiModelFromHardwareId(modelHint);
+    // Discovery serial is an 8-char board string and must not be used as a model name.
+    _settings.device_model = iqtaxiModelFromHardwareId(hardwareId.toStdString());
 
     if (const IqtaxiDeviceCaps *caps = iqtaxiDeviceCapsByModel(_settings.device_model))
     {
@@ -73,6 +72,26 @@ bool IqtaxiInput::start()
         [this](const std::string &err) { onError(err); });
 
     _running = started;
+    if (started)
+    {
+        std::string label = _backend.board_label();
+        if (label.empty() && _settings.device_model.find("E100") != std::string::npos)
+        {
+            const std::string band = _backend.rf_band();
+            label = band.empty() ? "E100" : ("E100-" + band);
+        }
+        if (label.empty())
+        {
+            label = _settings.device_model;
+        }
+        _deviceDescription = QString("IQTAXI %1 Input").arg(QString::fromStdString(label));
+        m_sampleFifo.setLabel(_deviceDescription);
+        qDebug() << "IqtaxiInput started:" << _deviceDescription;
+        if (m_guiMessageQueue)
+        {
+            m_guiMessageQueue->push(MsgReportRfBand::create(QString::fromStdString(label)));
+        }
+    }
     return started;
 }
 
@@ -123,12 +142,8 @@ bool IqtaxiInput::deserialize(const QByteArray &data)
     // Keep model locked to the SamplingDevice that created this instance.
     if (_deviceAPI)
     {
-        const QString serial = _deviceAPI->getSamplingDeviceSerial();
-        const QString hardwareId = _deviceAPI->getHardwareId();
-        const std::string modelHint = !serial.isEmpty()
-            ? serial.toStdString()
-            : hardwareId.toStdString();
-        _settings.device_model = iqtaxiModelFromHardwareId(modelHint);
+        _settings.device_model = iqtaxiModelFromHardwareId(
+            _deviceAPI->getHardwareId().toStdString());
     }
 
     _settings.sample_rate_hz = iqtaxiNearestSampleRate(_settings.device_model, _settings.sample_rate_hz);
@@ -164,7 +179,8 @@ void IqtaxiInput::setCenterFrequency(qint64 centerFrequency)
     IqtaxiSettings next = _settings;
     if (centerFrequency > 0)
     {
-        next.center_freq_hz = static_cast<uint64_t>(centerFrequency);
+        const uint64_t maxHz = iqtaxiMaxCenterFreqHz(_settings.device_model);
+        next.center_freq_hz = std::min(static_cast<uint64_t>(centerFrequency), maxHz);
         (void)applySettings(next, false);
     }
 }

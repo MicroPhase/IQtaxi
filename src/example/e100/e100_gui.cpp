@@ -76,6 +76,7 @@ struct GuiConfig {
     uint64_t tx_lo_hz = 1000000000ull;
     uint32_t rx_gain = 30u;
     uint32_t tx_atten = 30u;
+    bool amp_enable = false;
     float tx_tone_hz = 200000.0f;
     float tx_amplitude = 0.35f;
     uint32_t tx_delay_ms = 200u;
@@ -966,6 +967,19 @@ private:
         }
     }
 
+    void apply_amp_on_commit()
+    {
+        if (!_connected || !_device) {
+            return;
+        }
+        try {
+            _device->set_amp_enable(_cfg.amp_enable);
+            set_status(_device->get_amp_enable() ? "TX AMP enabled" : "TX AMP disabled", false);
+        } catch (const std::exception& ex) {
+            set_status(std::string("TX AMP update failed: ") + ex.what(), true);
+        }
+    }
+
     void trigger_lvds_if_reset()
     {
         if (!_connected || !_device) {
@@ -1036,6 +1050,13 @@ private:
             }
         }
         ImGui::Text("state: %s", _connected ? "connected" : "disconnected");
+        if (_connected && _device) {
+            const auto& device_profile = _device->get_profile();
+            ImGui::Text("board: %s", e100_display_name(device_profile).c_str());
+            ImGui::Text("RF: %.0f .. %.0f MHz",
+                        device_profile.rx_frequency_hz.minimum / 1e6,
+                        device_profile.rx_frequency_hz.maximum / 1e6);
+        }
     }
 
     void render_radio_controls()
@@ -1099,6 +1120,11 @@ private:
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             apply_tx_atten_on_commit();
         }
+
+        if (ImGui::Checkbox("TX AMP", &_cfg.amp_enable)) {
+            apply_amp_on_commit();
+        }
+        ImGui::TextDisabled("External PA. Off by default; TX LO changes keep this state.");
 
         if (ImGui::Button("LVDS IF Reset")) {
             try {
@@ -1475,7 +1501,8 @@ private:
         _device = std::move(device);
         _connected = true;
         apply_settings();
-        set_status("connected", false);
+        set_status(std::string("connected: ") +
+                   e100_display_name(_device->get_profile()), false);
     }
 
     void disconnect()
@@ -1515,6 +1542,7 @@ private:
         _device->set_tx_freq(_cfg.tx_lo_hz, 1);
         _device->set_rx_gain(_cfg.rx_gain, 1);
         _device->set_tx_atten(_cfg.tx_atten, 1);
+        _device->set_amp_enable(_cfg.amp_enable);
 
         _rx_stream = _device->get_rx_stream();
         _tx_stream = _device->get_tx_stream();

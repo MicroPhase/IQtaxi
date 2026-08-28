@@ -6,13 +6,21 @@
 
 | Device 下拉 | `makeDevice` | RX 增益 | 采样率 |
 |-------------|--------------|---------|--------|
-| E100 | `E100` | 0～41 dB | 5 档（7.68～122.88 MHz） |
+| E100 | `E100` | 0～41 dB | 11 档：15.36 MHz 族（含 1.92）+ 46.08 MHz 族。6G/10G 由固件读回 |
 | E200 | `E200` | 0～75 dB | AD9361 常用档，最高 61.44 MHz |
 | E206 | `E206` | 0～41 dB | 固件 22 档 |
 
+父工程默认打开本插件（与 `ref/E100` 相同），源码路径默认 `/home/kang/packages/SDRPlusPlus`。找不到 `libsdrpp_core` 或头文件时会 skip。
+
 ## 构建
 
-父工程 `cmake ..` 时打开：
+```bash
+cmake ..
+make -j"$(nproc)" iqtaxi_source
+sudo cmake --install .
+```
+
+也可显式指定：
 
 ```bash
 cmake .. \
@@ -30,8 +38,8 @@ cmake .. \
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `ENABLE_SDRPP_IQTAXI` | OFF | 父工程是否 `add_subdirectory(src/sdr++)` |
-| `SDRPP_ROOT` | 空（也可使用同名环境变量） | SDR++ 源码树 |
+| `ENABLE_SDRPP_IQTAXI` | ON | 父工程是否尝试编译本插件 |
+| `SDRPP_ROOT` | `/home/kang/packages/SDRPlusPlus` | SDR++ 源码树 |
 | `SDRPP_PLUGIN_INSTALL_DIR` | `lib/sdrpp/plugins` | 相对 `CMAKE_INSTALL_PREFIX` 的安装目录 |
 | `IQTAXI_LIB_DIR` | `/usr/local/lib` | **仅独立编本目录时** 查找 `libsdr_core.so` / `libsdr_driver.so` |
 

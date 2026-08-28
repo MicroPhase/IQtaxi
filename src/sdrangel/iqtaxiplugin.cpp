@@ -6,6 +6,8 @@
 #include "iqtaxiinput.h"
 #include "iqtaxiwebapiadapter.h"
 #include "iqtaxi_settings.h"
+#include "include/sdr/api/DeviceProfile.hpp"
+#include "include/sdr/api/UdpDiscover.hpp"
 #ifndef SERVER_MODE
 #include "iqtaxigui.h"
 #endif
@@ -39,6 +41,8 @@ void IqtaxiPlugin::initPlugin(PluginAPI *pluginAPI)
 
 void IqtaxiPlugin::enumOriginDevices(QStringList &listedHwIds, OriginDevices &originDevices)
 {
+    const auto discovered = sdr::api::iqtaxi_udp_discover(250);
+
     for (std::size_t i = 0; i < kIqtaxiDeviceCapsCount; ++i)
     {
         const IqtaxiDeviceCaps &caps = kIqtaxiDeviceCaps[i];
@@ -48,10 +52,33 @@ void IqtaxiPlugin::enumOriginDevices(QStringList &listedHwIds, OriginDevices &or
             continue;
         }
 
+        QString serial = QString::fromLatin1(caps.model);
+        QString display = QString::fromLatin1(caps.display_name);
+        for (const auto &info : discovered)
+        {
+            if (info.name != caps.model)
+            {
+                continue;
+            }
+            const std::string modelLabel =
+                sdr::api::iqtaxi_model_label(info.name, info.board_version);
+            display = QString("IQTAXI %1").arg(QString::fromStdString(modelLabel));
+            if (!info.serial.empty())
+            {
+                serial = QString::fromStdString(info.serial);
+                display += QString(" %1").arg(serial);
+            }
+            if (!info.addr.empty())
+            {
+                display += QString(" @ %1").arg(QString::fromStdString(info.addr));
+            }
+            break;
+        }
+
         originDevices.append(OriginDevice(
-            QString::fromLatin1(caps.display_name),
+            display,
             hardwareId,
-            QString::fromLatin1(caps.model), // serial carries model name
+            serial,
             static_cast<int>(i),
             1, // nb Rx
             0  // nb Tx

@@ -23,6 +23,9 @@ struct IqtaxiDeviceCaps
     const char *model;
     const char *hardware_id; // SDRangel OriginDevice / SamplingDevice hardwareId
     const char *display_name;
+    const char *factory_name; // Device::makeDevice product string
+    const char *rf_band;      // "6G" / "10G" / ""
+    uint64_t max_freq_hz;
     const uint32_t *sample_rates;
     std::size_t sample_rate_count;
     uint32_t default_sample_rate_hz;
@@ -58,6 +61,9 @@ inline constexpr IqtaxiDeviceCaps kIqtaxiDeviceCaps[] = {
         "E100",
         "IQTAXI-E100",
         "IQTAXI E100",
+        "E100",
+        "",
+        10000000000ull, // 10 GHz dial; 6G/10G is read back from firmware after start
         sdr::api::kGc080xLegacySampleRatesHz.data(),
         sdr::api::kGc080xLegacySampleRatesHz.size(),
         15360000u,
@@ -68,6 +74,9 @@ inline constexpr IqtaxiDeviceCaps kIqtaxiDeviceCaps[] = {
         "E200",
         "IQTAXI-E200",
         "IQTAXI E200",
+        "E200",
+        "",
+        6000000000ull,
         kIqtaxiE200SampleRates,
         sizeof(kIqtaxiE200SampleRates) / sizeof(kIqtaxiE200SampleRates[0]),
         30720000u,
@@ -78,6 +87,9 @@ inline constexpr IqtaxiDeviceCaps kIqtaxiDeviceCaps[] = {
         "E206",
         "IQTAXI-E206",
         "IQTAXI E206",
+        "E206",
+        "",
+        6000000000ull,
         sdr::api::kGc080xLegacySampleRatesHz.data(),
         sdr::api::kGc080xLegacySampleRatesHz.size(),
         15360000u,
@@ -92,6 +104,8 @@ inline constexpr std::size_t kIqtaxiDeviceCapsCount =
 const IqtaxiDeviceCaps *iqtaxiDeviceCapsByModel(const std::string &model);
 const IqtaxiDeviceCaps *iqtaxiDeviceCapsByHardwareId(const std::string &hardware_id);
 std::string iqtaxiModelFromHardwareId(const std::string &hardware_id);
+std::string iqtaxiFactoryDeviceName(const std::string &model);
+uint64_t iqtaxiMaxCenterFreqHz(const std::string &model);
 
 const char *iqtaxiSampleRateLabel(uint32_t sample_rate_hz);
 bool iqtaxiIsSupportedSampleRate(const std::string &model, uint32_t sample_rate_hz);

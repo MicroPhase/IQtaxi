@@ -20,7 +20,7 @@ constexpr uint32_t kMiB = 1024u * 1024u;
 constexpr uint32_t kReplayMaxBytes = 240u * kMiB;
 constexpr uint32_t kMaxChunkBytes = 4u * kMiB;
 constexpr uint32_t kDefaultChunkBytes = 4u * kMiB;
-constexpr uint32_t kDefaultPacketGapUs = 25u;
+constexpr uint32_t kDefaultPacketGapUs = 100u;
 constexpr uint32_t kTxSourceIq = 1u;
 
 struct Config {
@@ -29,6 +29,7 @@ struct Config {
     uint32_t sample_rate_hz = 15360000u;
     uint64_t tx_lo_hz = 1000000000ull;
     uint32_t tx_atten = 10u;
+    bool amp_enable = false;
     uint32_t chunk_bytes = kDefaultChunkBytes;
     double chunk_timeout_sec = 10.0;
     uint32_t packet_gap_us = kDefaultPacketGapUs;
@@ -55,6 +56,8 @@ void print_usage()
         << "  --sample-rate <hz>       sample rate, default 15360000\n"
         << "  --tx-lo <hz>             TX LO, default 1000000000\n"
         << "  --tx-atten <db>          TX attenuation, default 10\n"
+        << "  --amp                    enable TX amp (default off)\n"
+        << "  --no-amp                 leave TX amp disabled\n"
         << "  --chunk <bytes>          DMA upload chunk, default 4194304, max 4194304\n"
         << "  --chunk-timeout <sec>    UDP/DMA chunk timeout, default 10\n"
         << "  --packet-gap-us <us>     delay between replay UDP IQ packets, default 25\n"
@@ -84,6 +87,10 @@ void parse_args(Config& cfg, int argc, char** argv)
             cfg.tx_lo_hz = parse_u64(value("--tx-lo"));
         } else if (arg == "--tx-atten") {
             cfg.tx_atten = parse_u32(value("--tx-atten"));
+        } else if (arg == "--amp") {
+            cfg.amp_enable = true;
+        } else if (arg == "--no-amp") {
+            cfg.amp_enable = false;
         } else if (arg == "--chunk") {
             cfg.chunk_bytes = parse_u32(value("--chunk"));
         } else if (arg == "--chunk-timeout") {
@@ -147,6 +154,7 @@ void print_config(const Config& cfg, size_t bytes)
               << "  sample rate   : " << cfg.sample_rate_hz << '\n'
               << "  tx lo         : " << cfg.tx_lo_hz << '\n'
               << "  tx atten      : " << cfg.tx_atten << '\n'
+              << "  amp enable    : " << (cfg.amp_enable ? "yes" : "no") << '\n'
               << "  chunk         : " << cfg.chunk_bytes << '\n'
               << "  packet gap us : " << cfg.packet_gap_us << '\n'
               << "  repeat        : " << cfg.repeat << "\n\n";
@@ -158,6 +166,7 @@ void configure_tx(E100Impl& device, const Config& cfg)
     device.setSampleRate(static_cast<double>(cfg.sample_rate_hz));
     device.set_tx_freq(cfg.tx_lo_hz, 1);
     device.set_tx_atten(cfg.tx_atten, 1);
+    device.set_amp_enable(cfg.amp_enable);
     device.get_local_bus()->poke32(e100::CUSTOM_SET_TX_SOURCE_SEL, kTxSourceIq);
 
     const uint32_t actual_rate = device.getSampleRate();
@@ -205,15 +214,23 @@ int main(int argc, char** argv)
         std::cout << "uploaded " << uploaded << " bytes, dma_offset="
                   << device.get_iq_replay_dma_offset() << '\n';
 
-        for (uint32_t n = 1; n < cfg.repeat; ++n) {
-            if (cfg.gap_ms != 0u) {
-                std::this_thread::sleep_for(std::chrono::milliseconds(cfg.gap_ms));
+        const double playback_sec =
+            static_cast<double>(iq.size() / 4u) /
+            static_cast<double>(cfg.sample_rate_hz);
+        for (uint32_t n = 0; n < cfg.repeat; ++n) {
+            if (n != 0u) {
+                if (cfg.gap_ms != 0u) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(cfg.gap_ms));
+                }
+                device.start_iq_replay();
             }
-            device.start_iq_replay();
             std::cout << "replay trigger " << (n + 1u) << " / " << cfg.repeat << '\n';
+            std::this_thread::sleep_for(
+                std::chrono::duration<double>(playback_sec + 0.5));
         }
 
-        std::cout << "replay running\n";
+        device.stop_iq_replay();
+        std::cout << "replay stopped\n";
         return 0;
     } catch (const std::exception& ex) {
         std::cerr << "e100_replay_iq_test failed: " << ex.what() << '\n';

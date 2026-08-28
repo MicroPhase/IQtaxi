@@ -144,6 +144,7 @@ add_executable(iqtaxi_firmware_update_gui
 )
 
 target_include_directories(iqtaxi_firmware_update_gui PRIVATE
+    ${SDR_INCLUDE_DIR}
     ${IMGUI_DIR}
     ${IMGUI_DIR}/backends
     ${GLFW3_INCLUDE_DIRS}

@@ -89,7 +89,7 @@ private:
     uint32_t _tx_atten = 0;
 
     bool initial_success = true;
-    const DeviceProfile& _profile;
+    DeviceProfile _profile;
 
 };
 #endif

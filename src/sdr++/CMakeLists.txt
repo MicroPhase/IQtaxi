@@ -5,7 +5,7 @@ if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(iqtaxi_source LANGUAGES CXX)
 endif ()
 
-set(SDRPP_ROOT "" CACHE PATH
+set(SDRPP_ROOT "/home/kang/packages/SDRPlusPlus" CACHE PATH
     "SDR++ source tree (needs core/src headers for OOT plugins)")
 if (NOT SDRPP_ROOT AND DEFINED ENV{SDRPP_ROOT})
     set(SDRPP_ROOT "$ENV{SDRPP_ROOT}" CACHE PATH

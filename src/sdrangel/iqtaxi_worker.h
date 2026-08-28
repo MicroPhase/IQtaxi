@@ -27,6 +27,8 @@ public:
     void stop();
     bool apply_settings(const IqtaxiSettings &settings);
     bool running() const { return _running.load(); }
+    std::string rf_band() const;
+    std::string board_label() const;
 
 private:
     bool open_device(const IqtaxiSettings &settings);
@@ -37,7 +39,7 @@ private:
     void worker_loop();
 
 private:
-    std::mutex _device_mutex;
+    mutable std::mutex _device_mutex;
     std::atomic<bool> _running{false};
     std::thread _thread;
 

@@ -1,5 +1,6 @@
 #include "iqtaxigui.h"
 
+#include <algorithm>
 #include <QFont>
 #include <QFormLayout>
 #include <QHBoxLayout>
@@ -13,6 +14,8 @@
 #include "device/deviceapi.h"
 #include "device/deviceuiset.h"
 #include "gui/colormapper.h"
+#include "include/sdr/api/DeviceProfile.hpp"
+#include "include/sdr/api/UdpDiscover.hpp"
 
 namespace
 {
@@ -23,7 +26,9 @@ IqtaxiGui::IqtaxiGui(DeviceUISet *deviceUISet, QWidget *parent) :
     DeviceGUI(parent),
     m_sampleSource((deviceUISet && deviceUISet->m_deviceAPI) ? deviceUISet->m_deviceAPI->getSampleSource() : nullptr),
     m_rootWidget(new QWidget(getContents())),
+    m_descLabel(nullptr),
     m_ipEdit(nullptr),
+    m_scanButton(nullptr),
     m_freqDial(nullptr),
     m_rateCombo(nullptr),
     m_gainSpin(nullptr),
@@ -40,12 +45,8 @@ IqtaxiGui::IqtaxiGui(DeviceUISet *deviceUISet, QWidget *parent) :
 
     if (deviceUISet && deviceUISet->m_deviceAPI)
     {
-        const QString serial = deviceUISet->m_deviceAPI->getSamplingDeviceSerial();
         const QString hardwareId = deviceUISet->m_deviceAPI->getHardwareId();
-        const std::string modelHint = !serial.isEmpty()
-            ? serial.toStdString()
-            : hardwareId.toStdString();
-        m_settings.device_model = iqtaxiModelFromHardwareId(modelHint);
+        m_settings.device_model = iqtaxiModelFromHardwareId(hardwareId.toStdString());
     }
 
     if (const IqtaxiDeviceCaps *caps = iqtaxiDeviceCapsByModel(m_settings.device_model))
@@ -64,6 +65,7 @@ IqtaxiGui::IqtaxiGui(DeviceUISet *deviceUISet, QWidget *parent) :
 
     setupUi();
     resetToDefaults();
+    applyDiscovery(true);
     if (!m_sampleSource) {
         setStatus("Sample source unavailable");
         m_startStopButton->setEnabled(false);
@@ -145,11 +147,18 @@ void IqtaxiGui::setupUi()
 {
     auto *mainLayout = new QVBoxLayout(m_rootWidget);
     const QString modelLabel = QString::fromStdString(m_settings.device_model);
-    auto *desc = new QLabel(QString("IQTAXI %1").arg(modelLabel), m_rootWidget);
-    mainLayout->addWidget(desc);
+    m_descLabel = new QLabel(QString("IQTAXI %1").arg(modelLabel), m_rootWidget);
+    mainLayout->addWidget(m_descLabel);
 
     auto *form = new QFormLayout();
     m_ipEdit = new QLineEdit(m_rootWidget);
+    m_scanButton = new QPushButton("Scan", m_rootWidget);
+    m_scanButton->setToolTip("UDP discover MicroPhase boards, fill Device IP, and show E100-6G/10G");
+    auto *ipRow = new QWidget(m_rootWidget);
+    auto *ipLayout = new QHBoxLayout(ipRow);
+    ipLayout->setContentsMargins(0, 0, 0, 0);
+    ipLayout->addWidget(m_ipEdit);
+    ipLayout->addWidget(m_scanButton);
     m_freqDial = new ValueDial(m_rootWidget, ColorMapper(ColorMapper::GrayGold));
     // ValueDial only gets a usable size after setFont() (sets fixed width/height).
     {
@@ -157,8 +166,11 @@ void IqtaxiGui::setupUi()
         dialFont.setPointSize(16);
         m_freqDial->setFont(dialFont);
     }
-    // Same convention as USRP: dial value is in kHz, each digit scrollable.
-    m_freqDial->setValueRange(9, 1ull, 6000000ull); // 1 kHz .. 6 GHz
+    // Same as the tested ref/E100 plugin: dial covers 10 GHz. 6G boards are
+    // identified after start via firmware RF-range / BOARD_BAND readback.
+    const quint64 maxKhz =
+        std::max<quint64>(1ull, iqtaxiMaxCenterFreqHz(m_settings.device_model) / 1000ull);
+    m_freqDial->setValueRange(9, 1ull, maxKhz);
     m_freqDial->setToolTip("Center frequency (kHz). Scroll each digit with mouse wheel.");
     m_freqDial->setCursor(Qt::PointingHandCursor);
     m_freqDial->setSizePolicy(QSizePolicy::Maximum, QSizePolicy::Fixed);
@@ -182,7 +194,7 @@ void IqtaxiGui::setupUi()
     {
         m_gainSpin->setRange(0, 76);
     }
-    form->addRow("Device IP", m_ipEdit);
+    form->addRow("Device IP", ipRow);
     form->addRow("Center Freq", freqRow);
     form->addRow("Sample Rate", m_rateCombo);
     form->addRow("RX Gain", m_gainSpin);
@@ -210,6 +222,7 @@ void IqtaxiGui::setupUi()
 
     connect(m_startStopButton, &ButtonSwitch::toggled, this, &IqtaxiGui::onStartStopToggled);
     connect(m_applyButton, &QPushButton::clicked, this, &IqtaxiGui::onApplyClicked);
+    connect(m_scanButton, &QPushButton::clicked, this, &IqtaxiGui::onScanClicked);
     connect(m_ipEdit, &QLineEdit::editingFinished, this, &IqtaxiGui::onParamsEdited);
     connect(m_freqDial, &ValueDial::changed, this, &IqtaxiGui::onCenterFrequencyChanged);
     connect(m_rateCombo, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &IqtaxiGui::onParamsEdited);
@@ -265,7 +278,8 @@ void IqtaxiGui::applyAndSendSettings(bool force)
     m_freqDebounceTimer.stop();
     m_settings.device_addr = m_ipEdit->text().trimmed().toStdString();
     // ValueDial animates: getValue() is old until animation ends; USRP uses getValueNew().
-    m_settings.center_freq_hz = m_freqDial->getValueNew() * 1000ull;
+    const uint64_t maxHz = iqtaxiMaxCenterFreqHz(m_settings.device_model);
+    m_settings.center_freq_hz = std::min(static_cast<uint64_t>(m_freqDial->getValueNew() * 1000ull), maxHz);
     m_settings.sample_rate_hz = m_rateCombo->currentData().toUInt();
     m_settings.rx_gain = iqtaxiClampGain(
         m_settings.device_model, static_cast<uint32_t>(m_gainSpin->value()));
@@ -293,7 +307,14 @@ bool IqtaxiGui::handleMessage(const Message &message)
         // From workspace WebAPI run/stop: sync button without re-sending MsgStartStop.
         const auto &cmd = static_cast<const IqtaxiInput::MsgStartStop &>(message);
         setStartStopChecked(cmd.getStartStop());
-        setStatus(cmd.getStartStop() ? "running" : "stopped");
+        if (cmd.getStartStop() && !m_boardLabel.isEmpty())
+        {
+            setStatus(QString("running  %1").arg(m_boardLabel));
+        }
+        else
+        {
+            setStatus(cmd.getStartStop() ? "running" : "stopped");
+        }
         return true;
     }
     if (IqtaxiInput::MsgReportError::match(message))
@@ -303,7 +324,34 @@ bool IqtaxiGui::handleMessage(const Message &message)
         setStartStopChecked(false);
         return true;
     }
+    if (IqtaxiInput::MsgReportRfBand::match(message))
+    {
+        const auto &report = static_cast<const IqtaxiInput::MsgReportRfBand &>(message);
+        applyBoardLabel(report.getRfBand());
+        return true;
+    }
     return false;
+}
+
+void IqtaxiGui::applyBoardLabel(const QString &board)
+{
+    m_boardLabel = board.trimmed();
+    if (m_boardLabel.isEmpty())
+    {
+        return;
+    }
+
+    setTitle(QString("IQTAXI %1").arg(m_boardLabel));
+    if (m_descLabel)
+    {
+        m_descLabel->setText(QString("IQTAXI %1").arg(m_boardLabel));
+    }
+
+    if (m_freqDial && m_boardLabel.contains(QLatin1String("E100")))
+    {
+        const quint64 maxKhz = m_boardLabel.contains(QLatin1String("6G")) ? 6000000ull : 10000000ull;
+        m_freqDial->setValueRange(9, 1ull, maxKhz);
+    }
 }
 
 void IqtaxiGui::setStartStopChecked(bool checked)
@@ -344,6 +392,41 @@ void IqtaxiGui::onParamsEdited()
 {
     applyAndSendSettings(false);
     setStatus("settings updated");
+}
+
+bool IqtaxiGui::applyDiscovery(bool fillIp)
+{
+    const auto found = sdr::api::iqtaxi_udp_discover(250);
+    for (const auto &info : found)
+    {
+        if (info.name != m_settings.device_model)
+        {
+            continue;
+        }
+        if (fillIp && m_ipEdit)
+        {
+            m_ipEdit->setText(QString::fromStdString(info.addr));
+        }
+        const QString label = QString::fromStdString(
+            sdr::api::iqtaxi_model_label(info.name, info.board_version));
+        applyBoardLabel(label);
+        applyAndSendSettings(false);
+        setStatus(QString("found %1 serial %2 at %3")
+                      .arg(label)
+                      .arg(QString::fromStdString(info.serial))
+                      .arg(QString::fromStdString(info.addr)));
+        return true;
+    }
+    setStatus(found.empty()
+                  ? "no UDP discovery response"
+                  : QString("no %1 in discovery responses")
+                        .arg(QString::fromStdString(m_settings.device_model)));
+    return false;
+}
+
+void IqtaxiGui::onScanClicked()
+{
+    applyDiscovery(true);
 }
 
 void IqtaxiGui::onCenterFrequencyChanged(quint64 value)
@@ -432,5 +515,12 @@ void IqtaxiGui::updateStatus()
 
     QString stateStr;
     m_deviceUISet->m_deviceAPI->getDeviceEngineStateStr(stateStr);
-    setStatus(stateStr);
+    if (state == DeviceAPI::StRunning && !m_boardLabel.isEmpty())
+    {
+        setStatus(QString("%1  %2").arg(stateStr, m_boardLabel));
+    }
+    else
+    {
+        setStatus(stateStr);
+    }
 }

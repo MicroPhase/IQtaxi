@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QComboBox>
+#include <QLabel>
 #include <QLineEdit>
 #include <QPushButton>
 #include <QSpinBox>
@@ -33,12 +34,15 @@ private:
     void displaySettings();
     void applyAndSendSettings(bool force);
     bool handleMessage(const Message &message);
+    void applyBoardLabel(const QString &board);
     void setStartStopChecked(bool checked);
+    bool applyDiscovery(bool fillIp);
 
 private slots:
     void onStartStopToggled(bool checked);
     void onApplyClicked();
     void onParamsEdited();
+    void onScanClicked();
     void onCenterFrequencyChanged(quint64 value);
     void onFreqDebounceTimeout();
     void handleInputMessages();
@@ -52,7 +56,9 @@ private:
     IqtaxiSettings m_settings;
 
     QWidget *m_rootWidget;
+    QLabel *m_descLabel;
     QLineEdit *m_ipEdit;
+    QPushButton *m_scanButton;
     ValueDial *m_freqDial;
     QComboBox *m_rateCombo;
     QSpinBox *m_gainSpin;
@@ -64,6 +70,7 @@ private:
     int m_lastEngineState;
     bool m_doApplySettings;
     bool m_updatingUi;
+    QString m_boardLabel;
 
     MessageQueue m_inputMessageQueue;
 };

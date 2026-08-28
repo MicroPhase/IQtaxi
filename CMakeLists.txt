@@ -11,8 +11,8 @@ option(ENABLE_E100 "Build E100 module" ON)
 option(ENABLE_E200 "Build E200 module" ON)
 option(ENABLE_GNURADIO_IQTAXI "Build GNU Radio IQTAXI RX/TX blocks" ON)
 option(ENABLE_WIN "Build Windows static libraries (MXE)" OFF)
-option(ENABLE_SDRANGEL_IQTAXI "Build SDRangel IQTAXI input plugin (E100/E200/E206)" OFF)
-option(ENABLE_SDRPP_IQTAXI "Build SDR++ IQTAXI source plugin (E100/E200/E206)" OFF)
+option(ENABLE_SDRANGEL_IQTAXI "Build SDRangel IQTAXI input plugin (E100/E200/E206)" ON)
+option(ENABLE_SDRPP_IQTAXI "Build SDR++ IQTAXI source plugin (E100/E200/E206)" ON)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -34,11 +34,32 @@ else()
     if(ENABLE_GNURADIO_IQTAXI)
         add_subdirectory(src/gnuradio)
     endif()
-    if(ENABLE_SDRANGEL_IQTAXI)
-        add_subdirectory(src/sdrangel)
-    endif()
+
     if(ENABLE_SDRPP_IQTAXI)
-        add_subdirectory(src/sdr++)
+        find_library(SDRPP_CORE_LIBRARY sdrpp_core)
+        set(SDRPP_ROOT "/home/kang/packages/SDRPlusPlus" CACHE PATH
+            "SDR++ source tree (needs core/src headers for OOT plugins)")
+        if(SDRPP_CORE_LIBRARY AND EXISTS "${SDRPP_ROOT}/core/src/module.h")
+            message(STATUS "SDR++ found (${SDRPP_CORE_LIBRARY}), building iqtaxi_source")
+            add_subdirectory(src/sdr++)
+        else()
+            message(STATUS
+                "SDR++ not found (need libsdrpp_core + SDRPP_ROOT/core/src/module.h); "
+                "skipping iqtaxi_source. Set -DSDRPP_ROOT=... or -DENABLE_SDRPP_IQTAXI=OFF")
+        endif()
+    endif()
+
+    if(ENABLE_SDRANGEL_IQTAXI)
+        set(SDRANGEL_SOURCE_DIR "/home/kang/packages/sdrangel" CACHE PATH
+            "SDRangel source tree path (headers)")
+        if(EXISTS "${SDRANGEL_SOURCE_DIR}/sdrbase/plugin/plugininterface.h")
+            message(STATUS "SDRangel found (${SDRANGEL_SOURCE_DIR}), building iqtaxiinput")
+            add_subdirectory(src/sdrangel)
+        else()
+            message(STATUS
+                "SDRangel headers not found at ${SDRANGEL_SOURCE_DIR}; "
+                "skipping iqtaxiinput. Set -DSDRANGEL_SOURCE_DIR=... or -DENABLE_SDRANGEL_IQTAXI=OFF")
+        endif()
     endif()
 
 # CMake installs are recorded in install_manifest.txt. Provide the matching

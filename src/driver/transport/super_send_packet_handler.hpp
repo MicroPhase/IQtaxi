@@ -80,10 +80,13 @@ public:
     static constexpr double kFlowControlRecvTimeoutSec = 0.01;
     static constexpr auto kSendReadyWait = std::chrono::milliseconds(20);
 
-    send_packet_streamer(local_ctrl::sptr& local_sptr, local_ctrl::sptr& stream_port)
+    send_packet_streamer(local_ctrl::sptr& local_sptr,
+                         local_ctrl::sptr& stream_port,
+                         bool enable_dds_ctrl = false)
     {
         _local_port = local_sptr;
         _stream_port = stream_port;
+        _enable_dds_ctrl = enable_dds_ctrl;
         _last_seq_out = 0;
         _last_seq_ack = 0;
         _fc_pkt_window = 800;
@@ -247,15 +250,23 @@ public:
 
     void set_stream_tx_start() override
     {
+        _local_port->poke32(SET_START_TX, 1u);
     }
 
     void set_stream_tx_stop() override
     {
+        /* e200_v25_server / e100_v25_server: STOP_TX switches the FPGA TX
+         * source back to IQ, which also stops the internal DDS stream. */
+        _local_port->poke32(SET_STOP_TX, 1u);
     }
 
     void dds_ctrl(uint32_t phase_ctrl) override
     {
-        (void)phase_ctrl;
+        if (!_enable_dds_ctrl) {
+            return;
+        }
+        /* Firmware writes the DDS FTW and selects TX_SOURCE_DDS. */
+        _local_port->poke32(SET_TX_DDS_CTRL_WORD, phase_ctrl);
     }
 
     size_t send(const buffs_type& buffs,
@@ -437,6 +448,7 @@ private:
     size_t _last_seq_ack = 0;
     size_t _fc_pkt_window = 0;
     local_ctrl::sptr _local_port, _stream_port;
+    bool _enable_dds_ctrl = false;
 
     mutable std::mutex _flow_control_mutex;
     std::condition_variable _flow_control_cv;

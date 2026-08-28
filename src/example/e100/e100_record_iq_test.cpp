@@ -32,7 +32,7 @@ struct Config {
     double chunk_timeout_sec = 2.0;
     uint32_t poll_ms = 20u;
     uint32_t settle_ms = 200u;
-    uint32_t warmup_bytes = kRecordLengthGranularityBytes;
+    uint32_t warmup_bytes = 0u;
 };
 
 uint32_t parse_u32(const char* value)
@@ -78,7 +78,7 @@ void print_usage()
         << "  --chunk-timeout <sec>    UDP chunk timeout, default 2\n"
         << "  --poll-ms <ms>           record status poll period, default 20\n"
         << "  --settle-ms <ms>         wait after RF tune before capture, default 200\n"
-        << "  --warmup-mb <n>          discard warmup capture before record, 0 disables, default 4\n"
+        << "  --warmup-mb <n>          discard warmup capture before record, default 0\n"
         << "  --help                   show this help\n";
 }
 

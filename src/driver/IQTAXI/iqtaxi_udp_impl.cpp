@@ -63,6 +63,41 @@ IqtaxiUdpImpl::IqtaxiUdpImpl(const std::string port, const DeviceProfile& profil
     {
         printf("IQTAXI UDP init failed\n");
         initial_success = false;
+    } else if (_profile.product == "E100") {
+        // E100 firmware exposes EEPROM-backed RF limits as 64-bit readbacks.
+        // Keep the static profile as a fallback for older firmware.
+        try {
+            const uint64_t min_hz = _local_bus->peek64(CUSTOM_RB_GET_RF_FREQ_MIN_ADDR);
+            const uint64_t max_hz = _local_bus->peek64(CUSTOM_RB_GET_RF_FREQ_MAX_ADDR);
+            if (min_hz > 0ull && max_hz > min_hz) {
+                _profile = e100_udp_profile_with_freq(
+                    static_cast<double>(min_hz),
+                    static_cast<double>(max_hz));
+            }
+            try {
+                const uint32_t board_band =
+                    _local_bus->peek32(CUSTOM_RB_GET_BOARD_BAND_ADDR);
+                if (board_band == 10u || board_band == 10000u) {
+                    _profile.rf_band = "10G";
+                } else if (board_band == 6u || board_band == 6000u) {
+                    _profile.rf_band = "6G";
+                }
+            } catch (const std::exception&) {
+                // Older firmware may not implement board-band readback.
+            }
+            if (_profile.rf_band.empty()) {
+                _profile.rf_band = e100_rf_band_from_max_hz(
+                    _profile.rx_frequency_hz.maximum);
+            }
+            std::cout << e100_display_name(_profile) << " RF range from device: "
+                      << static_cast<uint64_t>(_profile.rx_frequency_hz.minimum)
+                      << " .. "
+                      << static_cast<uint64_t>(_profile.rx_frequency_hz.maximum)
+                      << " Hz" << std::endl;
+        } catch (const std::exception& ex) {
+            std::cerr << "E100 RF range readback failed, using default profile: "
+                      << ex.what() << std::endl;
+        }
     }
 }
 
@@ -145,7 +180,11 @@ rx_streamer::sptr IqtaxiUdpImpl::get_rx_stream() {
 tx_streamer::sptr IqtaxiUdpImpl::get_tx_stream(){
     std::lock_guard<std::mutex> lock(_transport_setup_mutex);
     if (!_tx_stream) {
-        _tx_stream = std::make_shared<send_packet_streamer>(_local_bus, _tx_stream_bus);
+        const bool enable_dds_ctrl =
+            (_profile.product == "E100" || _profile.product == "E200" ||
+             _profile.product == "E206");
+        _tx_stream = std::make_shared<send_packet_streamer>(
+            _local_bus, _tx_stream_bus, enable_dds_ctrl);
     }
     return _tx_stream;
 }
@@ -226,6 +265,9 @@ uint64_t IqtaxiUdpImpl::get_rx_freq(size_t channel){
     if (_profile.product == "E206") {
         return _local_bus->peek64(CUSTOM_RB_GET_RX_CH1_LO_FREQ_ADDR);
     }
+    if (_profile.product == "E100") {
+        return _local_bus->peek64(CUSTOM_RB_GET_E100_RX_CH1_LO_FREQ_ADDR);
+    }
 
     const uint32_t low = _local_bus->peek32(CUSTOM_RB_GET_RX_CH1_LO_FREQ_LOW_ADDR);
     const uint32_t high = _local_bus->peek32(CUSTOM_RB_GET_RX_CH1_LO_FREQ_HIGH_ADDR);
@@ -235,6 +277,9 @@ uint64_t IqtaxiUdpImpl::get_rx_freq(size_t channel){
 uint64_t IqtaxiUdpImpl::get_tx_freq(size_t channel){
     if (_profile.product == "E206") {
         return _local_bus->peek64(CUSTOM_RB_GET_TX_CH1_LO_FREQ_ADDR);
+    }
+    if (_profile.product == "E100") {
+        return _local_bus->peek64(CUSTOM_RB_GET_E100_TX_CH1_LO_FREQ_ADDR);
     }
 
     const uint32_t low = _local_bus->peek32(CUSTOM_RB_GET_TX_CH1_LO_FREQ_LOW_ADDR);

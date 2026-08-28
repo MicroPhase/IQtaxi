@@ -128,8 +128,12 @@ namespace sdr::api {
 
     Device::sptr Device::makeDevice(const std::string device,const std::string addr) {
         if(device == "E100" || device == "e100" ||
+            device == "E100-6G" || device == "E100-10G" ||
+            device == "E100_6G" || device == "E100_10G" ||
             device == "ANTSDR_E100" ||
-            device == "ANTSDR-E100"){
+            device == "ANTSDR-E100" ||
+            device == "ANTSDR-E100-6G" ||
+            device == "ANTSDR-E100-10G"){
             auto dev = std::make_shared<E100Impl>(addr);
             if(dev->isInitialSuccess())
                 return dev;

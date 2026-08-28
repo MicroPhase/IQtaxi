@@ -35,10 +35,142 @@ constexpr size_t kMaxUdpPacketSamples = (1472u - 16u) / 4u;
 // HDSDR needs large blocks. 512 @ 15.36 Msps => ~30k callbacks/s and eventually
 // freezes/crashes. Keep a multiple of 512 (ExtIO rule). HackRF uses ~131072.
 constexpr size_t kCallbackIqPairs = 2048u;
-constexpr size_t kDefaultSampleRateHz = 15360000u;
 constexpr uint64_t kDefaultLoHz = 100000000ull;
 constexpr uint32_t kDefaultRxGain = 40u;
 constexpr size_t kNumCallbackBuffers = 4u;
+
+// E100: 15.36 MHz family and 46.08 MHz family.
+constexpr double kE100SampleRates[] = {
+    122880000.0,
+    61440000.0,
+    30720000.0,
+    15360000.0,
+    7680000.0,
+    3840000.0,
+    1920000.0,
+    46080000.0,
+    23040000.0,
+    11520000.0,
+    5760000.0,
+};
+
+// E200 / AD9361: keep rates at or below 61.44 Msps.
+constexpr double kE200SampleRates[] = {
+    1920000.0,
+    2000000.0,
+    3840000.0,
+    4000000.0,
+    5000000.0,
+    5760000.0,
+    7680000.0,
+    8000000.0,
+    10000000.0,
+    11520000.0,
+    15360000.0,
+    16000000.0,
+    20000000.0,
+    23040000.0,
+    30720000.0,
+    32000000.0,
+    40000000.0,
+    46080000.0,
+    61440000.0,
+};
+
+// E206 firmware sample-rate profiles.
+constexpr double kE206SampleRates[] = {
+    122880000.0,
+    61440000.0,
+    30720000.0,
+    15360000.0,
+    7680000.0,
+    3840000.0,
+    1920000.0,
+    46080000.0,
+    23040000.0,
+    11520000.0,
+    5760000.0,
+    80000000.0,
+    40000000.0,
+    20000000.0,
+    10000000.0,
+    5000000.0,
+    64000000.0,
+    32000000.0,
+    16000000.0,
+    8000000.0,
+    4000000.0,
+    2000000.0,
+};
+
+struct DeviceCaps {
+    const double* sample_rates;
+    int sample_rate_count;
+    double default_sample_rate;
+    uint32_t gain_min;
+    uint32_t gain_max;
+};
+
+constexpr DeviceCaps kE100Caps = {
+    kE100SampleRates,
+    static_cast<int>(sizeof(kE100SampleRates) / sizeof(kE100SampleRates[0])),
+    15360000.0,
+    0u,
+    41u,
+};
+constexpr DeviceCaps kE200Caps = {
+    kE200SampleRates,
+    static_cast<int>(sizeof(kE200SampleRates) / sizeof(kE200SampleRates[0])),
+    30720000.0,
+    0u,
+    75u,
+};
+constexpr DeviceCaps kE206Caps = {
+    kE206SampleRates,
+    static_cast<int>(sizeof(kE206SampleRates) / sizeof(kE206SampleRates[0])),
+    15360000.0,
+    0u,
+    42u,
+};
+
+const DeviceCaps& caps_for_device(const std::string& name)
+{
+    if (name.find("E200") != std::string::npos ||
+        name.find("e200") != std::string::npos) {
+        return kE200Caps;
+    }
+    if (name.find("E100") != std::string::npos ||
+        name.find("e100") != std::string::npos) {
+        return kE100Caps;
+    }
+    return kE206Caps;
+}
+
+int find_sample_rate_idx(const DeviceCaps& caps, double rate)
+{
+    for (int i = 0; i < caps.sample_rate_count; ++i) {
+        if (caps.sample_rates[i] == rate) {
+            return i;
+        }
+    }
+    return 0;
+}
+
+uint32_t clamp_gain(const DeviceCaps& caps, uint32_t gain)
+{
+    if (gain < caps.gain_min) {
+        return caps.gain_min;
+    }
+    if (gain > caps.gain_max) {
+        return caps.gain_max;
+    }
+    return gain;
+}
+
+int gain_count(const DeviceCaps& caps)
+{
+    return static_cast<int>(caps.gain_max - caps.gain_min) + 1;
+}
 
 #ifdef _WIN32
 // HDSDR does FFT work inside the ExtIO callback; commit a large stack.
@@ -54,11 +186,12 @@ struct ExtioState {
 
     std::string device_name = "E206";
     std::string addr = "192.168.1.10";
-    std::atomic<uint32_t> sample_rate_hz{kDefaultSampleRateHz};
+    const DeviceCaps* caps = &kE206Caps;
+    std::atomic<uint32_t> sample_rate_hz{15360000u};
     std::atomic<uint64_t> lo_hz{kDefaultLoHz};
     std::atomic<uint32_t> rx_gain{kDefaultRxGain};
-    std::atomic<int> sample_rate_idx{3}; // 15.36 Msps in kSampleRates
-    std::atomic<int> atten_idx{4};
+    std::atomic<int> sample_rate_idx{3};
+    std::atomic<int> atten_idx{40};
 
     std::atomic<bool> pending_lo{false};
     std::atomic<bool> pending_gain{false};
@@ -98,19 +231,6 @@ ExtioState& state()
     static ExtioState s;
     return s;
 }
-
-// Keep ExtIO rates in a range HDSDR can realistically process.
-const double kSampleRates[] = {
-    7680000.0,
-    15360000.0,
-    30720000.0,
-    61440000.0,
-    122880000.0,
-};
-
-const float kAttenuators[] = {
-    0.0f, 10.0f, 20.0f, 30.0f, 40.0f, 50.0f, 60.0f,
-};
 
 // Prefer process-wide atomic over MinGW emutls thread_local: a stuck TLS depth
 // would silently drop every IQ callback while HDSDR UI keeps scrolling.
@@ -204,6 +324,12 @@ void apply_defaults_from_env(ExtioState& st)
 {
     st.device_name = env_or("IQTAXI_EXTIO_DEVICE", "E206");
     st.addr = env_or("IQTAXI_EXTIO_ADDR", "192.168.1.10");
+    st.caps = &caps_for_device(st.device_name);
+    st.sample_rate_idx.store(find_sample_rate_idx(*st.caps, st.caps->default_sample_rate));
+    st.sample_rate_hz.store(static_cast<uint32_t>(st.caps->default_sample_rate));
+    const uint32_t gain = clamp_gain(*st.caps, kDefaultRxGain);
+    st.rx_gain.store(gain);
+    st.atten_idx.store(static_cast<int>(gain - st.caps->gain_min));
 }
 
 bool configure_rf_locked(ExtioState& st)
@@ -665,7 +791,12 @@ EXTIO_EXPORT bool EXTIO_CALL OpenHW(void)
             return false;
         }
         st.opened = true;
-        log_msg("OpenHW ok");
+        {
+            const std::string opened =
+                std::string("OpenHW ok ") +
+                sdr::api::e100_display_name(st.device->get_profile());
+            log_msg(opened.c_str());
+        }
         return true;
     } catch (...) {
         st.device.reset();
@@ -838,11 +969,12 @@ EXTIO_EXPORT void EXTIO_CALL HideGUI(void)
 
 EXTIO_EXPORT int EXTIO_CALL ExtIoGetSrates(int idx, double *samplerate)
 {
-    if (idx < 0 || idx >= static_cast<int>(sizeof(kSampleRates) / sizeof(kSampleRates[0]))) {
+    const DeviceCaps& caps = *state().caps;
+    if (idx < 0 || idx >= caps.sample_rate_count) {
         return -1;
     }
     if (samplerate) {
-        *samplerate = kSampleRates[idx];
+        *samplerate = caps.sample_rates[idx];
     }
     return 0;
 }
@@ -854,7 +986,9 @@ EXTIO_EXPORT int EXTIO_CALL ExtIoGetActualSrateIdx(void)
 
 EXTIO_EXPORT int EXTIO_CALL ExtIoSetSrate(int idx)
 {
-    if (idx < 0 || idx >= static_cast<int>(sizeof(kSampleRates) / sizeof(kSampleRates[0]))) {
+    auto& st = state();
+    const DeviceCaps& caps = *st.caps;
+    if (idx < 0 || idx >= caps.sample_rate_count) {
         return -1;
     }
 
@@ -862,12 +996,11 @@ EXTIO_EXPORT int EXTIO_CALL ExtIoSetSrate(int idx)
         return -1;
     }
 
-    auto& st = state();
+    const uint32_t new_rate = static_cast<uint32_t>(caps.sample_rates[idx]);
     bool restart = false;
     {
         std::lock_guard<std::mutex> lock(st.mutex);
-        if (st.sample_rate_idx.load() == idx &&
-            st.sample_rate_hz.load() == static_cast<uint32_t>(kSampleRates[idx])) {
+        if (st.sample_rate_idx.load() == idx && st.sample_rate_hz.load() == new_rate) {
             return 0;
         }
         restart = st.running;
@@ -881,7 +1014,7 @@ EXTIO_EXPORT int EXTIO_CALL ExtIoSetSrate(int idx)
         std::lock_guard<std::mutex> lock(st.mutex);
         stop_stream_resources_locked(st);
         st.sample_rate_idx.store(idx);
-        st.sample_rate_hz.store(static_cast<uint32_t>(kSampleRates[idx]));
+        st.sample_rate_hz.store(new_rate);
         try {
             if (st.device) {
                 st.device->setSampleRate(static_cast<double>(st.sample_rate_hz.load()));
@@ -914,11 +1047,12 @@ EXTIO_EXPORT int EXTIO_CALL ExtIoSetSrate(int idx)
 
 EXTIO_EXPORT int EXTIO_CALL GetAttenuators(int idx, float *attenuation)
 {
-    if (idx < 0 || idx >= static_cast<int>(sizeof(kAttenuators) / sizeof(kAttenuators[0]))) {
+    const DeviceCaps& caps = *state().caps;
+    if (idx < 0 || idx >= gain_count(caps)) {
         return -1;
     }
     if (attenuation) {
-        *attenuation = kAttenuators[idx];
+        *attenuation = static_cast<float>(caps.gain_min + static_cast<uint32_t>(idx));
     }
     return 0;
 }
@@ -930,13 +1064,14 @@ EXTIO_EXPORT int EXTIO_CALL GetActualAttIdx(void)
 
 EXTIO_EXPORT int EXTIO_CALL SetAttenuator(int idx)
 {
-    if (idx < 0 || idx >= static_cast<int>(sizeof(kAttenuators) / sizeof(kAttenuators[0]))) {
+    auto& st = state();
+    const DeviceCaps& caps = *st.caps;
+    if (idx < 0 || idx >= gain_count(caps)) {
         return -1;
     }
 
-    auto& st = state();
     st.atten_idx.store(idx);
-    const uint32_t new_gain = static_cast<uint32_t>(kAttenuators[idx]);
+    const uint32_t new_gain = caps.gain_min + static_cast<uint32_t>(idx);
     const uint32_t old_gain = st.rx_gain.exchange(new_gain);
     if (new_gain == old_gain) {
         return 0;

@@ -175,16 +175,9 @@ KwargsList discover_device(int timeout_ms, unit_t &out_dev)
                     continue;
                 seen_devices.insert(device_key);
                 Kwargs candiate;
-                std::string serial_str = "";
-                for(int i=0;i<8;i++)
-                    serial_str += std::to_string((int)out_dev.serial_number[i]);
-                std::string board_str = "";
-                for(int i=0;i<8;i++)
-                    board_str += std::to_string((int)out_dev.board_version[i]);
+                // Keep discovery kwargs minimal (aligned with ref/E100).
                 candiate["addr"] = ip;
                 candiate["name"] = out_dev.name;
-                candiate["serial"] = serial_str;    
-                candiate["board"] = board_str;  
                 result.push_back(candiate);
             }
         }

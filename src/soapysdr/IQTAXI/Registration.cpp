@@ -1,12 +1,15 @@
 #include <SoapySDR/Registry.hpp>
 #include "iqtaxiDevice.hpp"
+#include "include/sdr/api/UdpDiscover.hpp"
 #include "src/driver/M300/m300_xdma_discovery.hpp"
 // #include <boost/filesystem.hpp>
 // #include <boost/format.hpp>
 // #include <boost/functional/hash.hpp>
 // #include <boost/lexical_cast.hpp>
-#include <string>
+#include <cstddef>
+#include <cstring>
 #include <set>
+#include <string>
 #include <fcntl.h>          // fcntl(), O_NONBLOCK
 
 #ifdef _WIN32
@@ -38,14 +41,7 @@
 #define    MICROPHASE_DRIVER_M300_XDMA "M300_XDMA"
 #define    MICROPHASE_DRIVER_FNIC_XDMA "FNIC_XDMA"
 
-#pragma pack(push,1)
-typedef struct{
-    char check[16];
-    char name[16];
-    uint8_t serial_number[32];
-    uint8_t board_version[8];
-} unit_t;
-#pragma pack(pop)
+using unit_t = sdr::api::IqtaxiUdpDiscoverPacket;
 
 static bool is_supported_device_name(const char *name)
 {
@@ -111,12 +107,26 @@ static bool is_m300_request(const SoapySDR::Kwargs &args)
     return false;
 }
 
+static std::string field_to_string(const char *field, std::size_t field_len)
+{
+    std::size_t length = 0;
+    while (length < field_len && field[length] != '\0') {
+        ++length;
+    }
+    return std::string(field, length);
+}
+
 static SoapySDR::Kwargs make_device_info(
     const char *device_name,
-    const std::string &addr)
+    const std::string &addr,
+    const std::string &board_version = {})
 {
+    // Keep discovery kwargs minimal (aligned with ref/E100). Extra keys such as
+    // serial/version/rf_band make later Soapy open/match fragile. Put the
+    // E100 6G/10G band in label only; Gqrx and SoapySDRUtil --find read that.
     SoapySDR::Kwargs devInfo;
     const std::string name(device_name);
+    const std::string model = sdr::api::iqtaxi_model_label(name, board_version);
 
     devInfo["type"] = "soapy";
     devInfo["driver"] = MICROPHASE_DRIVER_IQTAXI;
@@ -124,7 +134,7 @@ static SoapySDR::Kwargs make_device_info(
     devInfo["product"] = name;
     devInfo["transport"] = "udp";
     devInfo["addr"] = addr;
-    devInfo["label"] = "Microphase " + name;
+    devInfo["label"] = "Microphase " + model;
 
     return devInfo;
 }
@@ -324,7 +334,11 @@ SoapySDR::KwargsList discover_device(int timeout_ms, unit_t &out_dev, const Soap
                 if (seen_devices.count(device_key))
                     continue;
                 seen_devices.insert(device_key);
-                results.push_back(make_device_info(out_dev.name, ip));
+                results.push_back(make_device_info(
+                    out_dev.name,
+                    ip,
+                    field_to_string(out_dev.board_version,
+                                    sizeof(out_dev.board_version))));
             }
         }
     }

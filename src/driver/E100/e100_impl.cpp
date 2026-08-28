@@ -123,12 +123,22 @@ E100Impl::E100Impl(const std::string port, const sdr::api::DeviceProfile& profil
     _record_udp = udp_zero_copy::make(
         port, SDR_STRINGIZE(MICROPHASE_E100_UDP_RECORD_PORT), record_buff_args);
     _record_data_bus = std::make_shared<local_ctrl>(_record_udp, 0x73, 8192);
-    send_record_data_hello(_record_data_bus);
+    // E100 firmware receives record/replay commands on the record data port.
+    // E206 uses the newer split control/data-port protocol and needs this
+    // packet to establish the return path for record data.
+    if (profile.product != "E100") {
+        send_record_data_hello(_record_data_bus);
+    }
 }
 
 void E100Impl::setSampleRate(double rate)
 {
     IqtaxiUdpImpl::setSampleRate(static_cast<double>(nearest_e100_sample_rate(rate)));
+}
+
+void E100Impl::set_tx_freq(uint64_t tx_lo, size_t channel)
+{
+    IqtaxiUdpImpl::set_tx_freq(tx_lo, channel);
 }
 
 void E100Impl::set_vcxo_reference_source(VcxoReferenceSource source)
@@ -230,10 +240,17 @@ size_t E100Impl::read_iq_record_chunk(void* dst, size_t max_bytes, double timeou
     }
 
     auto data_bus = _record_data_bus;
-    send_record_data_hello(data_bus);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
-    const uint32_t chunk_bytes = static_cast<uint32_t>(
-        get_local_bus()->poke32_ack_value(CUSTOM_SET_RECORD_DMA_READ_NEXT, 0u, timeout_sec));
+    uint32_t chunk_bytes = 0u;
+    if (get_profile().product == "E100") {
+        chunk_bytes = static_cast<uint32_t>(
+            data_bus->poke32_ack_value(CUSTOM_SET_RECORD_DMA_READ_NEXT, 0u, timeout_sec));
+    } else {
+        send_record_data_hello(data_bus);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        chunk_bytes = static_cast<uint32_t>(
+            get_local_bus()->poke32_ack_value(
+                CUSTOM_SET_RECORD_DMA_READ_NEXT, 0u, timeout_sec));
+    }
     if (chunk_bytes == 0u) {
         return 0u;
     }
@@ -318,8 +335,10 @@ std::vector<uint8_t> E100Impl::read_iq_record_all(double timeout_sec)
 void E100Impl::configure_iq_replay(uint32_t length_bytes)
 {
     validate_replay_length(length_bytes);
+    auto command_bus =
+        get_profile().product == "E100" ? _record_data_bus : get_local_bus();
     throw_if_command_failed(
-        get_local_bus()->poke32_ack_value(CUSTOM_SET_REPLAY_LENGTH_BYTES, length_bytes, 1.0),
+        command_bus->poke32_ack_value(CUSTOM_SET_REPLAY_LENGTH_BYTES, length_bytes, 1.0),
         "set replay length");
 }
 
@@ -328,16 +347,56 @@ void E100Impl::start_iq_replay(uint32_t length_bytes)
     if (length_bytes != 0u) {
         validate_replay_length(length_bytes);
     }
+    auto command_bus =
+        get_profile().product == "E100" ? _record_data_bus : get_local_bus();
     throw_if_command_failed(
-        get_local_bus()->poke32_ack_value(CUSTOM_SET_REPLAY_START, length_bytes, 1.0),
+        command_bus->poke32_ack_value(CUSTOM_SET_REPLAY_START, length_bytes, 1.0),
         "start replay");
 }
 
 void E100Impl::stop_iq_replay()
 {
+    auto command_bus =
+        get_profile().product == "E100" ? _record_data_bus : get_local_bus();
     throw_if_command_failed(
-        get_local_bus()->poke32_ack_value(CUSTOM_SET_REPLAY_STOP, 1u, 1.0),
+        command_bus->poke32_ack_value(CUSTOM_SET_REPLAY_STOP, 1u, 1.0),
         "stop replay");
+}
+
+void E100Impl::poke_amp_enable(bool enable)
+{
+    get_local_bus()->poke32(CUSTOM_SET_AMP_ENABLE, enable ? 1u : 0u);
+}
+
+void E100Impl::set_amp_enable(bool enable)
+{
+    if (get_profile().product != "E100") {
+        throw std::logic_error("AMP control is only available on E100");
+    }
+    poke_amp_enable(enable);
+    _amp_enable = enable;
+    if (get_amp_enable() != enable) {
+        throw std::runtime_error(
+            enable ? "E100 AMP enable failed (firmware readback still off)"
+                   : "E100 AMP disable failed (firmware readback still on)");
+    }
+}
+
+bool E100Impl::get_amp_enable()
+{
+    if (get_profile().product != "E100") {
+        throw std::logic_error("AMP status is only available on E100");
+    }
+    // Firmware exposes AMP state as a readback selector on 0xFFFF, not a SET.
+    return get_local_bus()->peek32(CUSTOM_GET_AMP_ENABLE) != 0u;
+}
+
+void E100Impl::set_rf_front_dsa_att(uint32_t attenuation)
+{
+    if (get_profile().product != "E100") {
+        throw std::logic_error("RF front-end DSA control is only available on E100");
+    }
+    get_local_bus()->poke32(CUSTOM_SET_RF_FRONT_DSA_ATT, attenuation);
 }
 
 uint32_t E100Impl::get_iq_replay_length_bytes()
@@ -397,9 +456,16 @@ void E100Impl::send_replay_iq_payload(const void* src, uint32_t bytes, uint64_t 
                     in + sent,
                     payload_bytes);
         send_buffer->commit(packet_bytes);
+        if (get_profile().product == "E100") {
+            // E100 needs each packet submitted before the pacing delay.
+            send_buffer.reset();
+        }
         sent += payload_bytes;
-        if (_replay_packet_gap_us != 0u && sent < bytes) {
-            std::this_thread::sleep_for(std::chrono::microseconds(_replay_packet_gap_us));
+        if (sent < bytes) {
+            if (_replay_packet_gap_us != 0u) {
+                std::this_thread::sleep_for(
+                    std::chrono::microseconds(_replay_packet_gap_us));
+            }
         }
     }
 }
@@ -418,12 +484,15 @@ size_t E100Impl::write_iq_replay_chunk(const void* src, size_t bytes, double tim
 
     const uint32_t chunk_bytes = static_cast<uint32_t>(bytes);
     const uint64_t chunk_offset = get_iq_replay_dma_offset();
-    auto ctrl_bus = get_local_bus();
-    ctrl_bus->send_pkt(CUSTOM_SET_REPLAY_DMA_WRITE_NEXT, chunk_bytes);
-    std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    const bool e100_record_protocol = get_profile().product == "E100";
+    auto command_bus = e100_record_protocol ? _record_data_bus : get_local_bus();
+    command_bus->send_pkt(CUSTOM_SET_REPLAY_DMA_WRITE_NEXT, chunk_bytes);
+    if (!e100_record_protocol) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
     send_replay_iq_payload(src, chunk_bytes, chunk_offset, timeout_sec);
 
-    const uint64_t ack = ctrl_bus->wait_for_ack(true, timeout_sec);
+    const uint64_t ack = command_bus->wait_for_ack(true, timeout_sec);
     if (ack != chunk_bytes) {
         std::ostringstream oss;
         oss << "E100 IQ replay DMA write failed: ack=0x"

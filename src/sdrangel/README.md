@@ -10,11 +10,19 @@
 | IQTAXI E200 | `IQTAXI-E200` | `E200` |
 | IQTAXI E206 | `IQTAXI-E206` | `E206` |
 
-采样率 / 增益范围随所选设备变化。
+采样率 / 增益范围随所选设备变化。E100 频率旋钮默认到 10 GHz；6G / 10G 由固件 RF 范围读回，Start 后标题会变成 `E100-6G` 或 `E100-10G`。
+
+父工程默认打开本插件（与 `ref/E100` 相同），源码路径默认 `/home/kang/packages/sdrangel`。找不到头文件时会 skip，不会让整个工程失败。
 
 ## 构建
 
-父工程 `cmake ..` 时打开：
+```bash
+cmake ..
+make -j"$(nproc)" iqtaxiinput
+sudo cmake --install . --component SDRangelIQTAXIPlugin
+```
+
+也可显式指定：
 
 ```bash
 cmake .. \
@@ -33,10 +41,10 @@ cmake .. \
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `ENABLE_SDRANGEL_IQTAXI` | OFF | 父工程是否 `add_subdirectory(src/sdrangel)` |
+| `ENABLE_SDRANGEL_IQTAXI` | ON | 父工程是否尝试编译本插件 |
 | `BUILD_SDRANGEL_IQTAXI_PLUGIN` | ON | 是否生成目标 `iqtaxiinput` |
 | `BUILD_SDRANGEL_IQTAXI_SKELETON` | ON | 是否编静态后端骨架 |
-| `SDRANGEL_SOURCE_DIR` | 空（也可使用同名环境变量） | SDRangel 源码树 |
+| `SDRANGEL_SOURCE_DIR` | `/home/kang/packages/sdrangel` | SDRangel 源码树 |
 | `SDRANGEL_BASE_LIB_DIR` | `/usr/local/lib/sdrangel` | `libsdrbase.so` 所在目录 |
 | `SDRANGEL_PLUGIN_INSTALL_DIR` | `/usr/local/lib/sdrangel/plugins` | 插件安装目录 |
 
@@ -58,17 +66,13 @@ sudo cmake --install . --component SDRangelIQTAXIPlugin
 /usr/local/lib/sdrangel/plugins/libinputiqtaxi.so
 ```
 
-若机器上还有旧的 `libinputiqtaxie206.so`，请删掉以免冲突：
-
-```bash
-sudo rm -f /usr/local/lib/sdrangel/plugins/libinputiqtaxie206.so
-```
+`cmake --install` 会删掉同目录下旧的 `libinputiqtaxie100.so` / `libinputiqtaxie206.so`，否则 SDRangel 仍会加载 `ref/E100` 装上的旧插件，源码改动看起来不生效。
 
 ## 使用
 
 1. 完全退出并重启 SDRangel
 2. 添加 Rx 设备，选择 **IQTAXI E100 / E200 / E206**
-3. 填写板子 IP，选采样率 / 增益，Start
+3. 填写板子 IP，选采样率 / 增益，Start。E100 会按固件显示 6G 或 10G。
 
 ## 源码说明
 

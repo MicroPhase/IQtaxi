@@ -70,6 +70,24 @@ public:
         {}
     };
 
+    class MsgReportRfBand : public Message
+    {
+        MESSAGE_CLASS_DECLARATION
+    public:
+        const QString &getRfBand() const { return m_rfBand; }
+        static MsgReportRfBand *create(const QString &rfBand)
+        {
+            return new MsgReportRfBand(rfBand);
+        }
+
+    private:
+        QString m_rfBand;
+        explicit MsgReportRfBand(const QString &rfBand) :
+            Message(),
+            m_rfBand(rfBand)
+        {}
+    };
+
     explicit IqtaxiInput(DeviceAPI *deviceAPI);
     ~IqtaxiInput() override;
 

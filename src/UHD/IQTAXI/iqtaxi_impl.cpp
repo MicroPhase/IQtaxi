@@ -10,6 +10,9 @@
 #include <boost/foreach.hpp>
 #include <cctype>
 #include <cmath>
+#include <cstring>
+#include <exception>
+#include <stdexcept>
 
 using namespace uhd;
 using namespace uhd::usrp;
@@ -88,6 +91,15 @@ device_addrs_t find_m300(const device_addr_t& hint)
     return found_devices;
 }
 
+std::string field_to_string(const char* field, std::size_t field_len)
+{
+    std::size_t length = 0;
+    while (length < field_len && field[length] != '\0') {
+        ++length;
+    }
+    return std::string(field, length);
+}
+
 } // namespace
 
 std::string check_e100_option_valid(const std::string& name,
@@ -130,6 +142,22 @@ static bool is_e206_product(const std::string& product)
 {
     return product == MICROPHASE_NAME_E206 ||
            product == "ANTSDR-E206";
+}
+
+static bool uhd_hint_name_accepted(const std::string& name)
+{
+    auto matches = [&](const char* product, const char* antsdr) {
+        return name == product || name == antsdr || name.rfind(antsdr, 0) == 0;
+    };
+    return matches(MICROPHASE_NAME_E100, "ANTSDR-E100") ||
+           matches(MICROPHASE_NAME_E200, "ANTSDR-E200") ||
+           matches(MICROPHASE_NAME_E206, "ANTSDR-E206");
+}
+
+static std::string uhd_discovery_display_name(
+    const std::string& product, const std::string& board_version)
+{
+    return "ANTSDR-" + sdr::api::iqtaxi_model_label(product, board_version);
 }
 
 static bool hint_accepts_microphase_device(
@@ -238,6 +266,64 @@ static std::string get_explicit_product_from_hint(const uhd::device_addr_t& hint
     return "";
 }
 
+static bool is_unicast_ipv4_addr(const std::string& addr)
+{
+    if (addr.empty() || addr.rfind("/dev/", 0) == 0) {
+        return false;
+    }
+    if (addr == "255.255.255.255") {
+        return false;
+    }
+    return addr.size() < 4 || addr.compare(addr.size() - 4, 4, ".255") != 0;
+}
+
+/* UHD device::make() re-runs find() and keeps a device only when
+ * serial_numbers_match() succeeds. That helper is std::stoi(serial, 0, 16),
+ * so an 8-digit hex like f350dbde throws out_of_range and the device is
+ * dropped even when the strings are identical. ref/E100 concatenates the
+ * decimal value of each serial byte and keeps 8 digits. */
+static bool uhd_serial_fits_stoi_hex(const std::string& serial)
+{
+    try {
+        (void)std::stoi(serial, nullptr, 16);
+        return true;
+    } catch (const std::exception&) {
+        return false;
+    }
+}
+
+static std::string uhd_safe_discovery_serial(const char* field, std::size_t field_len)
+{
+    std::string serial_str;
+    const std::size_t n = std::min(field_len, static_cast<std::size_t>(32));
+    for (std::size_t i = 0; i < n; ++i) {
+        serial_str += std::to_string(
+            static_cast<unsigned int>(static_cast<unsigned char>(field[i])));
+    }
+    if (serial_str.size() > 8) {
+        serial_str.resize(8);
+    }
+    return serial_str;
+}
+
+static device_addr_t make_explicit_device_addr(
+    const device_addr_t& hint, const std::string& product)
+{
+    device_addr_t mp_addr;
+    /* UHD make() filters on exact type/name/serial/product. Keep the
+     * hint's type so a second find of a previously discovered device
+     * is not dropped (type=iqtaxi vs type=ant). */
+    mp_addr["type"] = hint.has_key("type") ? hint["type"] : "iqtaxi";
+    mp_addr["legacy_type"] = hint.has_key("legacy_type") ? hint["legacy_type"] : "ant";
+    mp_addr["addr"] = hint["addr"];
+    mp_addr["product"] = hint.has_key("product") ? hint["product"] : product;
+    mp_addr["name"] = hint.has_key("name") ? hint["name"] : ("ANTSDR-" + product);
+    if (hint.has_key("serial") && uhd_serial_fits_stoi_hex(hint["serial"])) {
+        mp_addr["serial"] = hint["serial"];
+    }
+    return mp_addr;
+}
+
 //这里的hint是应用传下来的“设备查找条件”，类似于uhd_find_device --args "type=ant"
 static device_addrs_t iqtaxi_find(const device_addr_t& hint)
 {
@@ -301,13 +387,7 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
     }
 
     if (hint_.has_key("name")) {
-        const std::string name = hint_["name"];
-        if (name != MICROPHASE_NAME_E100 &&
-            name != MICROPHASE_NAME_E200 &&
-            name != MICROPHASE_NAME_E206 &&
-            name != "ANTSDR-E100" &&
-            name != "ANTSDR-E200" &&
-            name != "ANTSDR-E206") {
+        if (!uhd_hint_name_accepted(hint_["name"])) {
             return e100_addrs;
         }
     }
@@ -343,6 +423,17 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
         }
         return e100_addrs;
     }
+
+    const std::string explicit_product = get_explicit_product_from_hint(hint_);
+    /* UHD make() re-runs find() with the previously discovered unicast args
+     * (addr=192.168.1.10, product=E100, name=ANTSDR-E100[-6G|-10G], ...).
+     * A second broadcast/unicast handshake is not required and can drop the
+     * device if the unicast confirm fails. ref/E100 keeps the same fallback. */
+    if (is_unicast_ipv4_addr(hint_["addr"]) && !explicit_product.empty()) {
+        e100_addrs.push_back(make_explicit_device_addr(hint_, explicit_product));
+        return e100_addrs;
+    }
+
     /* connect the device from ethernet "addr=" */
     udp_simple::sptr udp_transport;
     try {
@@ -351,6 +442,9 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
     } catch (const std::exception &e) {
         UHD_LOGGER_ERROR("Microphase")
                 << "Cannot open UDP transport on " << hint_["addr"] << ":" << e.what();
+        if (!explicit_product.empty()) {
+            e100_addrs.push_back(make_explicit_device_addr(hint_, explicit_product));
+        }
         return e100_addrs;
     }
 
@@ -384,56 +478,51 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
             mp_addr["legacy_type"] = "ant";
             mp_addr["addr"] = udp_transport->get_recv_addr();
 
-            udp_simple::sptr ctrl_xport = udp_simple::make_connected(
-                    mp_addr["addr"], BOOST_STRINGIZE(MICROPHASE_IQTAXI_UDP_FIND_PORT)
-            );
-            // Query the discovered device through its connected unicast
-            // transport. Reusing the broadcast transport here makes it
-            // receive its own request first; the subsequent `continue`
-            // leaves the device reply queued in the outer loop and creates
-            // an endless request/reply discovery cycle when two E200s are
-            // online concurrently.
-            ctrl_xport->send(boost::asio::buffer(&ctrl_data_out, sizeof(ctrl_data_out)));
-            size_t len = ctrl_xport->recv(boost::asio::buffer(microphase_e100_ctrl_data_in_mem));
-            if (len >= sizeof(ctrl_data_out)
-                and strcmp(ctrl_data_in->check,MICROPHASE_CHECK) == 0
-                and is_supported_microphase_device(ctrl_data_in->name)
-                and hint_accepts_microphase_device(hint_, ctrl_data_in->name)) {
-                std::string serial_str = "";
-                for(int i=0;i<32;i++)
-                    serial_str += std::to_string((int)ctrl_data_in->serial_number[i]);
-                std::string board_str = "";
-                for(int i=0;i<8;i++)
-                    board_str += std::to_string((int)ctrl_data_in->board_version[i]);
-                mp_addr["product"] = ctrl_data_in->name;
-                mp_addr["serial"] = serial_str.substr(0,8);
-                mp_addr["name"] = "ANTSDR-" + std::string(ctrl_data_in->name);
-                std::cout << mp_addr["serial"] << std::endl;
-                // found the device,open up for communication!
-                e100_addrs.push_back(mp_addr);
-            } else {
-                continue;
+            try {
+                udp_simple::sptr ctrl_xport = udp_simple::make_connected(
+                        mp_addr["addr"], BOOST_STRINGIZE(MICROPHASE_IQTAXI_UDP_FIND_PORT)
+                );
+                // Query the discovered device through its connected unicast
+                // transport. Reusing the broadcast transport here makes it
+                // receive its own request first; the subsequent `continue`
+                // leaves the device reply queued in the outer loop and creates
+                // an endless request/reply discovery cycle when two E200s are
+                // online concurrently.
+                ctrl_xport->send(boost::asio::buffer(&ctrl_data_out, sizeof(ctrl_data_out)));
+                const size_t confirm_len =
+                    ctrl_xport->recv(boost::asio::buffer(microphase_e100_ctrl_data_in_mem));
+                if (confirm_len >= sizeof(ctrl_data_out)
+                    and strcmp(ctrl_data_in->check,MICROPHASE_CHECK) == 0
+                    and is_supported_microphase_device(ctrl_data_in->name)
+                    and hint_accepts_microphase_device(hint_, ctrl_data_in->name)) {
+                    const std::string product_name = field_to_string(
+                        ctrl_data_in->name, sizeof(ctrl_data_in->name));
+                    const std::string board_version = field_to_string(
+                        ctrl_data_in->board_version,
+                        sizeof(ctrl_data_in->board_version));
+                    mp_addr["product"] = product_name;
+                    mp_addr["serial"] = uhd_safe_discovery_serial(
+                        ctrl_data_in->serial_number,
+                        sizeof(ctrl_data_in->serial_number));
+                    mp_addr["name"] = uhd_discovery_display_name(
+                        product_name, board_version);
+                    std::cout << mp_addr["serial"] << std::endl;
+                    e100_addrs.push_back(mp_addr);
+                }
+            } catch (const std::exception& ex) {
+                UHD_LOGGER_ERROR("Microphase ANT")
+                    << "ANT unicast discovery confirm failed: " << ex.what();
             }
         }
         if (len == 0)
             break;
     }
 
-    const std::string explicit_product = get_explicit_product_from_hint(hint_);
     if (e100_addrs.empty() && !explicit_product.empty()) {
-        device_addr_t mp_addr;
-        mp_addr["type"] = "iqtaxi";
-        mp_addr["legacy_type"] = "ant";
-        mp_addr["addr"] = hint_["addr"];
-        mp_addr["product"] = explicit_product;
-        mp_addr["name"] = "ANTSDR-" + explicit_product;
-        if (hint_.has_key("serial")) {
-            mp_addr["serial"] = hint_["serial"];
-        }
         UHD_LOGGER_WARNING("Microphase")
             << "No discovery response from " << hint_["addr"]
             << "; using explicit " << explicit_product << " device hint";
-        e100_addrs.push_back(mp_addr);
+        e100_addrs.push_back(make_explicit_device_addr(hint_, explicit_product));
     }
 
     return e100_addrs;
@@ -514,6 +603,7 @@ iqtaxi_impl::iqtaxi_impl(const uhd::device_addr_t &device_addr){
         const std::string backend_name = _is_m300 ? "M300_XDMA" :
             (use_e200_backend ? MICROPHASE_NAME_E200 :
              (use_e206_backend ? MICROPHASE_NAME_E206 : MICROPHASE_NAME_E100));
+        _product_name = backend_name == "M300_XDMA" ? MICROPHASE_NAME_M300 : backend_name;
 
         UHD_LOGGER_INFO("ANT") << "Detected Device: ANTSDR-" << product_name;
         UHD_LOGGER_INFO("ANT") << "TX timestamp scheduling: "
@@ -558,6 +648,11 @@ iqtaxi_impl::iqtaxi_impl(const uhd::device_addr_t &device_addr){
         }
         _profile = &iqtaxi_device->get_profile();
         _is_e100 = _profile->product == MICROPHASE_NAME_E100;
+        if (_profile && _profile->product == "E100" && !_profile->rf_band.empty()) {
+            mb_eeprom["name"] = "ANTSDR-" + e100_display_name(*_profile);
+            _tree->access<mboard_eeprom_t>(mb_path / "eeprom").set(mb_eeprom);
+            product_name = e100_display_name(*_profile);
+        }
         //uoe
         iqtaxi_device->set_dma_mode(0);
         
@@ -839,6 +934,13 @@ void iqtaxi_impl::setup_radio(const size_t dspno) {
 			.set_publisher(std::bind(&iqtaxi_impl::getGain, this, dir, dspno))
 			.add_coerced_subscriber(std::bind(&iqtaxi_impl::setGain, this, dir, dspno, std::placeholders::_1));
 
+		if (_product_name == MICROPHASE_NAME_E100 && dir == TX_DIRECTION) {
+			_tree->create<bool>(rf_fe_path / "amp")
+				.set_publisher(std::bind(&iqtaxi_impl::getAmpEnable, this))
+				.add_coerced_subscriber(std::bind(&iqtaxi_impl::setAmpEnable, this, std::placeholders::_1))
+				.set(false);
+		}
+
 
 		_tree->create<std::string>(rf_fe_path / "connection").set("IQ");
 		_tree->create<bool>(rf_fe_path / "enabled").set(true);
@@ -873,6 +975,29 @@ void iqtaxi_impl::setup_radio(const size_t dspno) {
 			_tree->create< std::list<std::string> >(rf_fe_path / "gain/agc/mode/options").set(mode_strings);
 		}
 
+		if (_product_name == MICROPHASE_NAME_E100) {
+			if (dir == RX_DIRECTION) {
+				static const std::vector<std::string> ants = boost::assign::list_of("TX/RX")("RX2");
+				_tree->create<std::vector<std::string> >(rf_fe_path / "antenna" / "options")
+					.set(ants);
+				_tree->create<std::string>(rf_fe_path / "antenna" / "value")
+					.set_coercer(std::bind(&check_e100_option_valid,
+						"RX antenna", ants, std::placeholders::_1))
+					.add_coerced_subscriber(std::bind(&iqtaxi_impl::setAntenna,
+						this, dir, dspno, std::placeholders::_1))
+					.set("RX2");
+			} else {
+				static const std::vector<std::string> ants(1, "TX/RX");
+				_tree->create<std::vector<std::string> >(rf_fe_path / "antenna" / "options")
+					.set(ants);
+				_tree->create<std::string>(rf_fe_path / "antenna" / "value")
+					.set_coercer(std::bind(&check_e100_option_valid,
+						"TX antenna", ants, std::placeholders::_1))
+					.add_coerced_subscriber(std::bind(&iqtaxi_impl::setAntenna,
+						this, dir, dspno, std::placeholders::_1))
+					.set("TX/RX");
+			}
+		} else {
 			const std::string antenna = dir == RX_DIRECTION ? "RX" : "TX";
 			const std::vector<std::string> antennas(1, antenna);
 			_tree->create<std::vector<std::string> >(rf_fe_path / "antenna" / "options")
@@ -883,6 +1008,7 @@ void iqtaxi_impl::setup_radio(const size_t dspno) {
 				.add_coerced_subscriber(std::bind(&iqtaxi_impl::setAntenna,
 					this, dir, dspno, std::placeholders::_1))
 				.set(antenna);
+		}
 	}
 }
 
@@ -1036,6 +1162,21 @@ uhd::meta_range_t iqtaxi_impl::getGainRange(const uhd::direction_t dir, const si
     return uhd::meta_range_t(0.0, 0.0, 1.0);
 }
 
+void iqtaxi_impl::setAmpEnable(bool enable)
+{
+    auto e100 = std::dynamic_pointer_cast<E100Impl>(iqtaxi_device);
+    if (!e100) {
+        return;
+    }
+    e100->set_amp_enable(enable);
+}
+
+bool iqtaxi_impl::getAmpEnable()
+{
+    auto e100 = std::dynamic_pointer_cast<E100Impl>(iqtaxi_device);
+    return e100 ? e100->get_amp_enable() : false;
+}
+
 double iqtaxi_impl::getFrequency(const uhd::direction_t dir, const size_t channel, const std::string &name){
     std::lock_guard<std::mutex> lock(_ctrl_mutex);
     if (name == "RF")
@@ -1097,6 +1238,19 @@ void iqtaxi_impl::setAntenna(const uhd::direction_t direction,
                              const size_t,
                              const std::string& name)
 {
+    if (_product_name == MICROPHASE_NAME_E100) {
+        if (direction == RX_DIRECTION) {
+            if (name != "TX/RX" && name != "RX2") {
+                throw uhd::value_error(
+                    str(boost::format("Invalid RX antenna: %s") % name));
+            }
+        } else if (name != "TX/RX") {
+            throw uhd::value_error(
+                str(boost::format("Invalid TX antenna: %s") % name));
+        }
+        return;
+    }
+
     const std::string expected = direction == RX_DIRECTION ? "RX" : "TX";
     if (name != expected) {
         throw uhd::value_error(
@@ -1153,7 +1307,12 @@ sensor_value_t iqtaxi_impl::get_ref_locked(void)
         return sensor_value_t("Ref", false, "locked", "unlocked");
     }
 
-    // E200 packs the VCXO loop status as:
+    if (_product_name == MICROPHASE_NAME_E100) {
+        const bool lock = (_local_bus->peek32(CUSTOM_RB32_CORE_MISC) & 0x1) == 0x1;
+        return sensor_value_t("Ref", lock, "locked", "unlocked");
+    }
+
+    // E200/E206 packs the VCXO loop status as:
     // [0] locked, [1] reference valid, [2] 10 MHz detected,
     // [3] PPS detected, [5:4] selected source, [31:16] DAC value.
     // An external UHD reference is usable only when the 10 MHz input is
@@ -1256,6 +1415,14 @@ void iqtaxi_impl::update_clock_source(const std::string& source)
     if (_is_m300 || !_local_bus) {
         if (source != "internal") {
             throw uhd::value_error("external clock source is not supported by this backend");
+        }
+        _clock_source = source;
+        return;
+    }
+
+    if (_product_name == MICROPHASE_NAME_E100) {
+        if (source != "internal" && source != "external") {
+            throw uhd::key_error("update_clock_source: unknown source: " + source);
         }
         _clock_source = source;
         return;

@@ -7,7 +7,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 option(BUILD_SDRANGEL_IQTAXI_SKELETON "Build IQTAXI backend skeleton" ON)
 option(BUILD_SDRANGEL_IQTAXI_PLUGIN "Build SDRangel plugin interface target" ON)
 
-set(SDRANGEL_SOURCE_DIR "" CACHE PATH
+set(SDRANGEL_SOURCE_DIR "/home/kang/packages/sdrangel" CACHE PATH
     "SDRangel source tree path (headers)")
 if(NOT SDRANGEL_SOURCE_DIR AND DEFINED ENV{SDRANGEL_SOURCE_DIR})
     set(SDRANGEL_SOURCE_DIR "$ENV{SDRANGEL_SOURCE_DIR}" CACHE PATH
@@ -30,6 +30,7 @@ if(BUILD_SDRANGEL_IQTAXI_SKELETON)
     target_include_directories(sdrangel_iqtaxi_skeleton PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${SDR_INCLUDE_DIR}
     )
 
     target_link_libraries(sdrangel_iqtaxi_skeleton PUBLIC
@@ -66,6 +67,7 @@ if(BUILD_SDRANGEL_IQTAXI_PLUGIN)
     target_include_directories(iqtaxiinput PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}
         ${CMAKE_CURRENT_SOURCE_DIR}/..
+        ${SDR_INCLUDE_DIR}
         ${SDRANGEL_SOURCE_DIR}/sdrbase
         ${SDRANGEL_SOURCE_DIR}/sdrgui
         ${SDRANGEL_SOURCE_DIR}/exports
@@ -139,4 +141,18 @@ if(BUILD_SDRANGEL_IQTAXI_PLUGIN)
         COMPONENT SDRangelIQTAXIPlugin
         LIBRARY DESTINATION ${SDRANGEL_PLUGIN_INSTALL_DIR}
     )
+
+    # ref/E100 installed libinputiqtaxie100.so into the same directory. SDRangel
+    # loads every plugin there, so the old file would keep showing "IQTAXI E100"
+    # and hide this unified plugin's changes.
+    install(CODE "
+        set(_plugindir \"${SDRANGEL_PLUGIN_INSTALL_DIR}\")
+        foreach(_old IN ITEMS libinputiqtaxie100.so libinputiqtaxie206.so)
+            set(_path \"\${_plugindir}/\${_old}\")
+            if(EXISTS \"\${_path}\")
+                message(STATUS \"Removing conflicting SDRangel plugin \${_path}\")
+                file(REMOVE \"\${_path}\")
+            endif()
+        endforeach()
+    ")
 endif()
