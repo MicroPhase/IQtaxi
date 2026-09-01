@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <cerrno>
+#include <chrono>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -97,20 +98,67 @@ namespace sdr { namespace core {
             return std::make_shared<UdpSocketInfo>(sock_fd, addr, port);
         }
 
+        inline bool udp_recv_is_transient(sdr_socket_ret_t len)
+        {
+            if (len == 0) {
+                // UDP has no orderly shutdown. A 0-byte datagram is a valid
+                // empty packet (FPGA packet-gate flush / cleanup), not EOF.
+                return true;
+            }
+            if (len >= 0) {
+                return false;
+            }
+#ifdef _WIN32
+            const int err = WSAGetLastError();
+            return err == WSAEWOULDBLOCK || err == WSAETIMEDOUT || err == WSAEINTR ||
+                   err == WSAECONNRESET || err == WSAECONNREFUSED;
+#else
+            return errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR ||
+                   errno == ECONNREFUSED || errno == ECONNRESET || errno == ENETUNREACH;
+#endif
+        }
+
         inline size_t recv_udp_packet(sdr_socket_t sock_fd, void* mem, size_t frame_size, int32_t timeout_ms)
         {
-            if (wait_for_recv_ready(sock_fd, timeout_ms)) {
-                const int recv_size = static_cast<int>(std::min<size_t>(frame_size, static_cast<size_t>((std::numeric_limits<int>::max)())));
-                sdr_socket_ret_t len = recv(sock_fd, static_cast<char*>(mem), recv_size, 0);
-                if (len == 0) {
-                    throw std::runtime_error("Socket closed");
+            const int recv_size = static_cast<int>(std::min<size_t>(
+                frame_size, static_cast<size_t>((std::numeric_limits<int>::max)())));
+            if (timeout_ms < 0) {
+                timeout_ms = 0;
+            }
+
+            const auto deadline =
+                std::chrono::steady_clock::now() + std::chrono::milliseconds(timeout_ms);
+            constexpr int kMaxEmptySkips = 64;
+            int empty_skips = 0;
+
+            while (true) {
+                int32_t wait_ms = timeout_ms;
+                if (timeout_ms > 0) {
+                    const auto now = std::chrono::steady_clock::now();
+                    if (now >= deadline) {
+                        return 0;
+                    }
+                    wait_ms = static_cast<int32_t>(
+                        std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now)
+                            .count());
                 }
-                if (len < 0) {
+
+                if (!wait_for_recv_ready(sock_fd, wait_ms)) {
+                    return 0;
+                }
+
+                const sdr_socket_ret_t len =
+                    recv(sock_fd, static_cast<char*>(mem), recv_size, 0);
+                if (len > 0) {
+                    return static_cast<size_t>(len);
+                }
+                if (!udp_recv_is_transient(len)) {
                     throw std::runtime_error("Error receiving packet");
                 }
-                return static_cast<size_t>(len);
+                if (++empty_skips >= kMaxEmptySkips) {
+                    return 0;
+                }
             }
-            return 0;
         }
 
         inline void send_udp_packet(sdr_socket_t sock_fd, void* mem, size_t len)

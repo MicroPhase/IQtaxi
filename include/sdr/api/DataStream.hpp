@@ -120,6 +120,11 @@ namespace sdr{namespace api{
         virtual void _start(void) = 0;
         virtual void _stop(void) = 0;;
 
+        // Stop the RX worker so the data socket has a single consumer, then
+        // drain and (if it was running) re-arm START after an RF epoch change.
+        virtual void prepare_for_rx_epoch_change() {}
+        virtual void finish_rx_epoch_change() {}
+
         virtual void enable_xfft(const size_t fft_point) = 0;
         virtual void set_sample_format(uint32_t format) = 0;
         virtual void set_sampleRate(size_t sampleRate) = 0;

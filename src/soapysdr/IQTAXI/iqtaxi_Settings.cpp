@@ -242,7 +242,11 @@ SoapySDR::RangeList IQTaxiDevice::getFrequencyRange( const int direction, const 
 
 void IQTaxiDevice::setFrequency(int direction, size_t channel, const std::string &name, double frequency, const SoapySDR::Kwargs &args)
 {
-    std::lock_guard<std::mutex> lock(_ctrl_mutex);
+    std::lock_guard<std::mutex> ctrl_lock(_ctrl_mutex);
+    std::unique_lock<std::mutex> rx_lock(_stream_rx_mutex, std::defer_lock);
+    if (direction == SOAPY_SDR_RX) {
+        rx_lock.lock();
+    }
     uint64_t freq;
     freq = (uint64_t)frequency; 
     if (name == "RF"){

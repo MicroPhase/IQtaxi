@@ -43,6 +43,7 @@ struct rx_stream_continuity_snapshot {
     uint64_t host_queue_drops = 0;
     uint64_t host_queue_depth = 0;
     uint64_t host_queue_depth_peak = 0;
+    uint64_t invalid_packets = 0;
 };
 
 struct queued_rx_packet {
@@ -154,6 +155,9 @@ public:
     {
         _request_num_samples = nsamps_per_buff + (8 - nsamps_per_buff % 8) % 8;
         if ((rx_mode == STREAM_MODE) & stream_start & (!stream_stop)) {
+            if (rx_thread.joinable()) {
+                _stop();
+            }
             reset_rx_continuity_stats();
             _local_port->poke32(SET_RX_SAMPLE_NUMS_ADDR, static_cast<uint32_t>(_request_num_samples));
             _local_port->poke32(SET_START_RX, 1);
@@ -172,6 +176,22 @@ public:
             printf("!!!!!! mode not support\n");
         }
         return 0;
+    }
+
+    void prepare_for_rx_epoch_change() override
+    {
+        _resume_rx_epoch = rx_thread.joinable();
+        _stop();
+    }
+
+    void finish_rx_epoch_change() override
+    {
+        reset_rx_continuity_stats();
+        if (_resume_rx_epoch) {
+            _resume_rx_epoch = false;
+            _local_port->poke32(SET_START_RX, 1);
+            _start();
+        }
     }
 
     void reset_rx_continuity_stats()
@@ -274,9 +294,23 @@ public:
 
             queued_rx_packet packet;
             packet.buff = std::move(buff);
-            packet.sample_count = buff_size - 4;
             uint32_t* vrt_hdr = packet.buff->cast<uint32_t*>();
             _stream_port->deserialize_hdr(vrt_hdr, packet.hdr);
+
+            static constexpr size_t kRxHeaderBytes = 16u;
+            const bool valid_packet =
+                packet.hdr.magic_type == PACKET_TYPE_RX_IQ &&
+                packet.hdr.packet_len == packet.buff->size() &&
+                packet.hdr.packet_len >= kRxHeaderBytes &&
+                ((packet.hdr.packet_len - kRxHeaderBytes) %
+                    (sizeof(int16_t) * 2u)) == 0u;
+            if (!valid_packet) {
+                note_invalid_packet();
+                continue;
+            }
+            packet.sample_count =
+                (packet.hdr.packet_len - kRxHeaderBytes) /
+                (sizeof(int16_t) * 2u);
             update_rx_continuity_stats(packet.hdr, static_cast<uint32_t>(packet.sample_count));
 
             if (!_rx_fifo.push(packet, false, 0)) {
@@ -567,6 +601,12 @@ private:
         _continuity.host_queue_drops++;
     }
 
+    void note_invalid_packet()
+    {
+        std::lock_guard<std::mutex> lock(_continuity_mutex);
+        _continuity.invalid_packets++;
+    }
+
     void update_host_queue_depth(size_t depth)
     {
         std::lock_guard<std::mutex> lock(_continuity_mutex);
@@ -587,6 +627,7 @@ private:
 
     std::thread rx_thread;
     std::atomic<bool> _rx_thread_stop;
+    bool _resume_rx_epoch = false;
     TSQueue<queued_rx_packet> _rx_fifo;
     managed_recv_buffer::sptr _pending_rx_buff;
     size_t _pending_sample_offset = 0;

@@ -38,6 +38,29 @@ void check_lo_command_status(uint64_t response, const char* direction, uint64_t 
             std::to_string(status) + ", target=" + std::to_string(frequency_hz) + " Hz");
     }
 }
+
+template <typename Fn>
+void with_rx_epoch_restart(rx_streamer::sptr& stream, Fn&& fn)
+{
+    const bool restart = static_cast<bool>(stream);
+    if (restart) {
+        stream->prepare_for_rx_epoch_change();
+    }
+    try {
+        fn();
+    } catch (...) {
+        if (restart) {
+            try {
+                stream->finish_rx_epoch_change();
+            } catch (...) {
+            }
+        }
+        throw;
+    }
+    if (restart) {
+        stream->finish_rx_epoch_change();
+    }
+}
 } // namespace
 
 void IqtaxiUdpImpl::send_rx_hello()
@@ -243,11 +266,13 @@ void IqtaxiUdpImpl::set_rx_freq(uint64_t rx_lo,size_t channel){
     if (_rx_freq_valid && _rx_freq == rx_lo) {
         return;
     }
-    const uint64_t response = _local_bus->poke64_ack_value(
-        CUSTOM_SET_RX_CH1_LO_FREQ_ADDR, rx_lo, kLoCommandTimeoutSec);
-    check_lo_command_status(response, "RX", rx_lo);
-    _rx_freq = rx_lo;
-    _rx_freq_valid = true;
+    with_rx_epoch_restart(_rx_stream, [&]() {
+        const uint64_t response = _local_bus->poke64_ack_value(
+            CUSTOM_SET_RX_CH1_LO_FREQ_ADDR, rx_lo, kLoCommandTimeoutSec);
+        check_lo_command_status(response, "RX", rx_lo);
+        _rx_freq = rx_lo;
+        _rx_freq_valid = true;
+    });
 }
 void IqtaxiUdpImpl::set_tx_freq(uint64_t tx_lo,size_t channel){
     std::lock_guard<std::mutex> lock(_settings_mutex);
@@ -310,9 +335,16 @@ void IqtaxiUdpImpl::set_rx_gain(uint32_t rx_gain, size_t channel){
     if (_rx_gain_valid && _rx_gain == gain) {
         return;
     }
-    _local_bus->poke32(CUSTOM_SET_RX_CH1_GAIN_ADDR, gain);
-    _rx_gain = gain;
-    _rx_gain_valid = true;
+    auto apply_gain = [&]() {
+        _local_bus->poke32(CUSTOM_SET_RX_CH1_GAIN_ADDR, gain);
+        _rx_gain = gain;
+        _rx_gain_valid = true;
+    };
+    if (_profile.product == "E100") {
+        with_rx_epoch_restart(_rx_stream, apply_gain);
+    } else {
+        apply_gain();
+    }
 }
 
 void IqtaxiUdpImpl::set_tx_atten(uint32_t tx_atten, size_t channel){
