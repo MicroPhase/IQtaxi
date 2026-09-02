@@ -11,6 +11,11 @@
 
 
 namespace sdr{namespace api{
+    inline constexpr uint8_t RX_STREAM_MODE = 0x1u;
+    inline constexpr int RX_FIFO_FLAG_NONE = 0;
+    inline constexpr int RX_FIFO_FLAG_DISCONTINUITY_BEFORE = 1 << 0;
+    inline constexpr int RX_FIFO_FLAG_TIMESTAMP_BACKWARDS = 1 << 1;
+
     template <typename T>
     class API_EXPORT ref_vector
     {

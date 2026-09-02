@@ -65,7 +65,10 @@ if(ENABLE_WIN)
 
 else()
     install(TARGETS sdr_driver
-        LIBRARY DESTINATION /usr/local/lib
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+        COMPONENT RuntimeAPI
     )
-    install(DIRECTORY ../../include/ DESTINATION include/iq_taxi)
+    install(DIRECTORY ../../include/
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/iq_taxi
+        COMPONENT RuntimeAPI)
 endif()

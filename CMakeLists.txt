@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.11)
 project(microphase_iq_taxi LANGUAGES CXX C)
 
+include(GNUInstallDirs)
+
 if(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
     set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
     set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS

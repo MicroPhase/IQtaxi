@@ -26,6 +26,22 @@ enum MicroRF_mode_t{
 };
 
 namespace sdr::api{
+    enum class ClockReferenceSource : uint32_t {
+        pps = 0u,
+        external_10mhz = 1u,
+        manual_dac = 2u,
+    };
+
+    struct ClockReferenceStatus {
+        bool locked = false;
+        bool reference_valid = false;
+        bool reference_is_10mhz = false;
+        bool reference_is_pps = false;
+        ClockReferenceSource selected_source = ClockReferenceSource::pps;
+        uint16_t dac_value = 0u;
+        uint32_t raw = 0u;
+    };
+
     class API_EXPORT Device {
     public:
         typedef std::shared_ptr<Device> sptr;
@@ -60,6 +76,13 @@ namespace sdr::api{
         virtual void set_tx_atten(uint32_t tx_atten, size_t channel) = 0;
 
         static sptr makeDevice(const std::string interface_type,const std::string addr);
+
+        // Common E-series reference-clock control.  These non-virtual API
+        // entry points keep applications independent of E100/E200/E206
+        // implementation headers while preserving the existing Device ABI.
+        void set_clock_reference_source(ClockReferenceSource source);
+        void set_clock_manual_dac(uint16_t value);
+        ClockReferenceStatus get_clock_reference_status();
 
         virtual void set_dma_mode(uint32_t mode) = 0;
 

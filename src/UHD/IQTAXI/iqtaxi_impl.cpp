@@ -100,6 +100,58 @@ std::string field_to_string(const char* field, std::size_t field_len)
     return std::string(field, length);
 }
 
+/* E100 legacy-rate firmware kept the original discovery layout with a
+ * 32-byte serial field (72 bytes total). Newer IQTAXI firmware uses the
+ * compact 8-byte serial layout from UdpDiscover.hpp (48 bytes total). */
+#pragma pack(push, 1)
+struct legacy_discover_packet_t {
+    char check[16];
+    char name[16];
+    char serial_number[32];
+    char board_version[8];
+};
+#pragma pack(pop)
+
+static_assert(sizeof(legacy_discover_packet_t) == 72,
+              "legacy E100 discovery packet layout changed");
+
+struct discover_packet_view {
+    std::string check;
+    std::string name;
+    std::string serial;
+    std::string board_version;
+    bool legacy = false;
+};
+
+static bool decode_discover_packet(const uint8_t* data,
+                                   std::size_t length,
+                                   discover_packet_view& view)
+{
+    if (length == sizeof(microphase_e100_ctrl_data_t)) {
+        const auto* packet = reinterpret_cast<const microphase_e100_ctrl_data_t*>(data);
+        view.check = field_to_string(packet->check, sizeof(packet->check));
+        view.name = field_to_string(packet->name, sizeof(packet->name));
+        view.serial = field_to_string(packet->serial_number,
+                                      sizeof(packet->serial_number));
+        view.board_version = field_to_string(packet->board_version,
+                                             sizeof(packet->board_version));
+        view.legacy = false;
+        return true;
+    }
+    if (length == sizeof(legacy_discover_packet_t)) {
+        const auto* packet = reinterpret_cast<const legacy_discover_packet_t*>(data);
+        view.check = field_to_string(packet->check, sizeof(packet->check));
+        view.name = field_to_string(packet->name, sizeof(packet->name));
+        view.serial = field_to_string(packet->serial_number,
+                                      sizeof(packet->serial_number));
+        view.board_version = field_to_string(packet->board_version,
+                                             sizeof(packet->board_version));
+        view.legacy = true;
+        return true;
+    }
+    return false;
+}
+
 } // namespace
 
 std::string check_e100_option_valid(const std::string& name,
@@ -451,8 +503,15 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
     microphase_e100_ctrl_data_t ctrl_data_out = microphase_e100_ctrl_data_t();
     strncpy(ctrl_data_out.check,MICROPHASE_CHECK,sizeof(ctrl_data_out.check));
     strncpy(ctrl_data_out.name,MICROPHASE_NAME_BR0,sizeof(ctrl_data_out.name));
+    legacy_discover_packet_t legacy_data_out{};
+    strncpy(legacy_data_out.check, MICROPHASE_CHECK, sizeof(legacy_data_out.check));
+    strncpy(legacy_data_out.name, MICROPHASE_NAME_BR0, sizeof(legacy_data_out.name));
+    const auto send_discovery_probe = [&](const udp_simple::sptr& transport) {
+        transport->send(boost::asio::buffer(&ctrl_data_out, sizeof(ctrl_data_out)));
+        transport->send(boost::asio::buffer(&legacy_data_out, sizeof(legacy_data_out)));
+    };
     try {
-        udp_transport->send(boost::asio::buffer(&ctrl_data_out, sizeof(ctrl_data_out)));
+        send_discovery_probe(udp_transport);
     } catch (const std::exception &ex) {
         UHD_LOGGER_ERROR("Microphase ANT") << "ANT Network discovery error" << ex.what();
     } catch (...) {
@@ -461,16 +520,14 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
     //loop and recieve until the timeout
     uint8_t microphase_e100_ctrl_data_in_mem[udp_simple::mtu];
 
-    const microphase_e100_ctrl_data_t *ctrl_data_in =
-            reinterpret_cast<const microphase_e100_ctrl_data_t *>(microphase_e100_ctrl_data_in_mem);
-
     while (true) {
         size_t len = udp_transport->recv(boost::asio::buffer(microphase_e100_ctrl_data_in_mem));
+        discover_packet_view response;
 
-        if (len >= sizeof(ctrl_data_out)
-            and strcmp(ctrl_data_in->check,MICROPHASE_CHECK) == 0
-            and is_supported_microphase_device(ctrl_data_in->name)
-            and hint_accepts_microphase_device(hint_, ctrl_data_in->name)) {
+        if (decode_discover_packet(microphase_e100_ctrl_data_in_mem, len, response)
+            and response.check == MICROPHASE_CHECK
+            and is_supported_microphase_device(response.name.c_str())
+            and hint_accepts_microphase_device(hint_, response.name.c_str())) {
             // make a boost asio ipv4 with the raw addr in host byte order1
 
             device_addr_t mp_addr;
@@ -488,22 +545,26 @@ static device_addrs_t iqtaxi_find(const device_addr_t& hint)
                 // leaves the device reply queued in the outer loop and creates
                 // an endless request/reply discovery cycle when two E200s are
                 // online concurrently.
-                ctrl_xport->send(boost::asio::buffer(&ctrl_data_out, sizeof(ctrl_data_out)));
+                if (response.legacy) {
+                    ctrl_xport->send(boost::asio::buffer(&legacy_data_out,
+                                                         sizeof(legacy_data_out)));
+                } else {
+                    ctrl_xport->send(boost::asio::buffer(&ctrl_data_out,
+                                                         sizeof(ctrl_data_out)));
+                }
                 const size_t confirm_len =
                     ctrl_xport->recv(boost::asio::buffer(microphase_e100_ctrl_data_in_mem));
-                if (confirm_len >= sizeof(ctrl_data_out)
-                    and strcmp(ctrl_data_in->check,MICROPHASE_CHECK) == 0
-                    and is_supported_microphase_device(ctrl_data_in->name)
-                    and hint_accepts_microphase_device(hint_, ctrl_data_in->name)) {
-                    const std::string product_name = field_to_string(
-                        ctrl_data_in->name, sizeof(ctrl_data_in->name));
-                    const std::string board_version = field_to_string(
-                        ctrl_data_in->board_version,
-                        sizeof(ctrl_data_in->board_version));
+                discover_packet_view confirmed;
+                if (decode_discover_packet(microphase_e100_ctrl_data_in_mem,
+                                           confirm_len, confirmed)
+                    and confirmed.check == MICROPHASE_CHECK
+                    and is_supported_microphase_device(confirmed.name.c_str())
+                    and hint_accepts_microphase_device(hint_, confirmed.name.c_str())) {
+                    const std::string product_name = confirmed.name;
+                    const std::string board_version = confirmed.board_version;
                     mp_addr["product"] = product_name;
                     mp_addr["serial"] = uhd_safe_discovery_serial(
-                        ctrl_data_in->serial_number,
-                        sizeof(ctrl_data_in->serial_number));
+                        confirmed.serial.data(), confirmed.serial.size());
                     mp_addr["name"] = uhd_discovery_display_name(
                         product_name, board_version);
                     std::cout << mp_addr["serial"] << std::endl;

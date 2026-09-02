@@ -36,6 +36,7 @@ if(ENABLE_WIN)
 else()
         target_compile_options(sdr_core PUBLIC -fPIC)
         install(TARGETS sdr_core
-                LIBRARY DESTINATION /usr/local/lib
+                LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+                COMPONENT RuntimeAPI
         )
 endif()

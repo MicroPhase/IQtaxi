@@ -170,4 +170,79 @@ namespace sdr::api {
         return nullptr;
     }
 
+    void Device::set_clock_reference_source(ClockReferenceSource source) {
+        if (auto* device = dynamic_cast<E100Impl*>(this)) {
+            // E206 derives from E100, but overrides the public clock-control
+            // operations with a different register map. Dispatch it first.
+            if (auto* e206 = dynamic_cast<E206Impl*>(this)) {
+                e206->set_vcxo_reference_source(
+                    static_cast<E206Impl::VcxoReferenceSource>(source));
+                return;
+            }
+            device->set_vcxo_reference_source(
+                static_cast<E100Impl::VcxoReferenceSource>(source));
+            return;
+        }
+        if (auto* device = dynamic_cast<E200Impl*>(this)) {
+            device->set_vcxo_reference_source(
+                static_cast<E200Impl::VcxoReferenceSource>(source));
+            return;
+        }
+        throw std::runtime_error("device does not support reference-clock selection");
+    }
+
+    void Device::set_clock_manual_dac(uint16_t value) {
+        if (auto* device = dynamic_cast<E100Impl*>(this)) {
+            if (auto* e206 = dynamic_cast<E206Impl*>(this)) {
+                e206->set_vcxo_manual_dac(value);
+                return;
+            }
+            device->set_vcxo_manual_dac(value);
+            return;
+        }
+        if (auto* device = dynamic_cast<E200Impl*>(this)) {
+            device->set_vcxo_manual_dac(value);
+            return;
+        }
+        throw std::runtime_error("device does not support manual reference-clock DAC control");
+    }
+
+    ClockReferenceStatus Device::get_clock_reference_status() {
+        ClockReferenceStatus result;
+        if (auto* device = dynamic_cast<E100Impl*>(this)) {
+            if (auto* e206 = dynamic_cast<E206Impl*>(this)) {
+                const auto status = e206->get_vcxo_status();
+                result.locked = status.locked;
+                result.reference_valid = status.reference_valid;
+                result.reference_is_10mhz = status.reference_is_10mhz;
+                result.reference_is_pps = status.reference_is_pps;
+                result.selected_source = static_cast<ClockReferenceSource>(status.selected_source);
+                result.dac_value = status.dac_value;
+                result.raw = status.raw;
+                return result;
+            }
+            const auto status = device->get_vcxo_status();
+            result.locked = status.locked;
+            result.reference_valid = status.reference_valid;
+            result.reference_is_10mhz = status.reference_is_10mhz;
+            result.reference_is_pps = status.reference_is_pps;
+            result.selected_source = static_cast<ClockReferenceSource>(status.selected_source);
+            result.dac_value = status.dac_value;
+            result.raw = status.raw;
+            return result;
+        }
+        if (auto* device = dynamic_cast<E200Impl*>(this)) {
+            const auto status = device->get_vcxo_status();
+            result.locked = status.locked;
+            result.reference_valid = status.reference_valid;
+            result.reference_is_10mhz = status.reference_is_10mhz;
+            result.reference_is_pps = status.reference_is_pps;
+            result.selected_source = static_cast<ClockReferenceSource>(status.selected_source);
+            result.dac_value = status.dac_value;
+            result.raw = status.raw;
+            return result;
+        }
+        throw std::runtime_error("device does not report reference-clock status");
+    }
+
 }
