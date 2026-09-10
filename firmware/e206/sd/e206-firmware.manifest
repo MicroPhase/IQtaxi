@@ -1,0 +1,16 @@
+format=e206-sd-boot-manifest-v1
+board=e206
+version=22cda948-dirty
+created_utc=2026-08-18T07:56:16Z
+file.BOOT.BIN.size=1082040
+file.BOOT.BIN.sha256=1a50e7ec57af0395662d7935abce7286994d0955f1a16f4575e6c04919ca7dd4
+file.devicetree.dtb.size=19708
+file.devicetree.dtb.sha256=2ab30dfafb4fba0d2a92647e73931014b5b062a69e1d07fd2ca9d70491f3506d
+file.e206.bit.size=2530690
+file.e206.bit.sha256=00f95a4d11eb4588c592b92b2efe354b443033870ca0eb3b92f18574f9004570
+file.rootfs.cpio.gz.size=6624679
+file.rootfs.cpio.gz.sha256=33814ca57a0487575fef0012ac8efa6b8c904a941ce78f50fe0c1f7e7f059a7d
+file.uEnv.txt.size=969
+file.uEnv.txt.sha256=b812fb9fb443cca7c899cf4552faf27352cf289a4d07942b7f6205a4bb8d1e54
+file.zImage.size=4535360
+file.zImage.sha256=ef3be27ab67af256859b8c7c825267dd15e9d1e6912cc016689b7ec59ab7a9c1

@@ -1,0 +1,10 @@
+bootargs=console=ttyPS0,115200 earlycon=cdns,mmio,0xe0000000 root=/dev/ram rw mem=256M cma=64M
+bitstream_image=e206.bit
+bitstream_load_address=0x08000000
+kernel_image=zImage
+devicetree_image=devicetree.dtb
+ramdisk_image=rootfs.cpio.gz
+kernel_load_address=0x02080000
+devicetree_load_address=0x02A00000
+ramdisk_load_address=0x04000000
+uenvcmd=if test -z "${boot_mmc}"; then setenv boot_mmc 0; fi; echo Loading FPGA bitstream from MMC ${boot_mmc}...; if fatload mmc ${boot_mmc}:1 ${bitstream_load_address} ${bitstream_image}; then if fpga loadb 0 ${bitstream_load_address} ${filesize}; then if fatload mmc ${boot_mmc}:1 ${kernel_load_address} ${kernel_image}; then if fatload mmc ${boot_mmc}:1 ${ramdisk_load_address} ${ramdisk_image}; then setenv ramdisk_size ${filesize}; if fatload mmc ${boot_mmc}:1 ${devicetree_load_address} ${devicetree_image}; then bootz ${kernel_load_address} ${ramdisk_load_address}:${ramdisk_size} ${devicetree_load_address}; fi; fi; fi; fi; fi

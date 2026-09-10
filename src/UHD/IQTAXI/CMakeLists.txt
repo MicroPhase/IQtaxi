@@ -134,8 +134,48 @@ elseif(NOT ENABLE_WIN)
         ${IQTAXI_UHD_DRIVER_LIBS}
     )
 
+    # Keep the UHD module and its ABI-coupled IQTAXI runtime libraries under
+    # the same CMAKE_INSTALL_PREFIX.  A normal `sudo make install` then updates
+    # the complete matching set instead of leaving an old runtime in use.
     install(TARGETS IQTaxiUHD
-        DESTINATION ${UHD_ROOT}/lib/uhd/modules
+        LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}/uhd/modules
+        COMPONENT UHDPlugin
     )
+
+    set(_iqtaxi_install_check [=[
+        set(_iqtaxi_root "$ENV{DESTDIR}${CMAKE_INSTALL_PREFIX}")
+        set(_iqtaxi_libdir "${_iqtaxi_root}/@CMAKE_INSTALL_LIBDIR@")
+        set(_iqtaxi_required
+            "${_iqtaxi_libdir}/libsdr_core.so"
+            "${_iqtaxi_libdir}/libsdr_driver.so"
+            "${_iqtaxi_libdir}/uhd/modules/libIQTaxiUHD.so")
+        foreach(_iqtaxi_file IN LISTS _iqtaxi_required)
+            if(NOT EXISTS "${_iqtaxi_file}")
+                message(FATAL_ERROR
+                    "Incomplete IQTAXI install: missing ${_iqtaxi_file}")
+            endif()
+        endforeach()
+
+        # Refresh the dynamic linker cache for a real system install.  Skip it
+        # for staged packaging via DESTDIR, where touching the host is wrong.
+        if("$ENV{DESTDIR}" STREQUAL "")
+            find_program(_iqtaxi_ldconfig NAMES ldconfig
+                PATHS /sbin /usr/sbin /usr/local/sbin)
+            if(_iqtaxi_ldconfig)
+                execute_process(
+                    COMMAND "${_iqtaxi_ldconfig}"
+                    RESULT_VARIABLE _iqtaxi_ldconfig_result)
+                if(NOT _iqtaxi_ldconfig_result EQUAL 0)
+                    message(FATAL_ERROR
+                        "IQTAXI installed, but ldconfig failed with ${_iqtaxi_ldconfig_result}")
+                endif()
+            endif()
+        endif()
+        message(STATUS
+            "Installed matching IQTAXI core, driver and UHD module set")
+    ]=])
+    string(CONFIGURE "${_iqtaxi_install_check}"
+        _iqtaxi_install_check_configured @ONLY)
+    install(CODE "${_iqtaxi_install_check_configured}")
 
 endif()
