@@ -1,7 +1,7 @@
-add_executable(MicroSDRUtil
-    MicroSDRUtil.cpp
+add_executable(ANTSDRUtil
+    ANTSDRUtil.cpp
 )
 
-target_include_directories(MicroSDRUtil PRIVATE ${SDR_INCLUDE_DIR})
+target_include_directories(ANTSDRUtil PRIVATE ${SDR_INCLUDE_DIR})
 
-install(TARGETS MicroSDRUtil DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(TARGETS ANTSDRUtil DESTINATION ${CMAKE_INSTALL_BINDIR})

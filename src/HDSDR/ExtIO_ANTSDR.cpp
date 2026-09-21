@@ -263,10 +263,11 @@ void log_msg(const char* msg)
 #ifdef _WIN32
     char path[MAX_PATH];
     DWORD n = GetTempPathA(MAX_PATH, path);
-    if (n == 0 || n + 20 >= MAX_PATH) {
+    static constexpr char kLogFile[] = "ExtIO_ANTSDR.log";
+    if (n == 0 || n + sizeof(kLogFile) > MAX_PATH) {
         return;
     }
-    std::memcpy(path + n, "ExtIO_MicroPhase.log", 21);
+    std::memcpy(path + n, kLogFile, sizeof(kLogFile));
     FILE* f = std::fopen(path, "a");
     if (!f) {
         return;
@@ -757,7 +758,7 @@ EXTIO_EXPORT bool EXTIO_CALL InitHW(char *name, char *model, int &hwtype)
     apply_defaults_from_env(st);
 
     if (name) {
-        std::snprintf(name, 16, "MicroPhase");
+        std::snprintf(name, 16, "%s", sdr::api::kIqtaxiProductSeries);
     }
     if (model) {
         std::snprintf(model, 16, "%s", st.device_name.c_str());

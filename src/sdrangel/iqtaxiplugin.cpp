@@ -16,10 +16,10 @@ const PluginDescriptor IqtaxiPlugin::m_pluginDescriptor = {
     QStringLiteral("IQTAXI"),
     QStringLiteral("IQTAXI Input"),
     QStringLiteral("0.2.0"),
-    QStringLiteral("(c) MicroPhase"),
-    QStringLiteral("https://www.microphase.cn"),
+    QStringLiteral("(c) ANTSDR"),
+    QStringLiteral("https://antsdr-docs.microphase.cn"),
     true,
-    QStringLiteral("https://www.microphase.cn")
+    QStringLiteral("https://antsdr-docs.microphase.cn")
 };
 
 static constexpr const char *const kDeviceTypeID = IQTAXI_DEVICE_TYPE_ID;

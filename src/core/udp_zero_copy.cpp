@@ -62,7 +62,14 @@ public:
 
     void release(void) override
     {
-        send_udp_packet(_sock_fd, _mem, size());
+        // release() is invoked by a shared_ptr deleter. An exception escaping
+        // that noexcept destruction path calls std::terminate, so a sudden
+        // device/network loss must be contained here. Control operations will
+        // subsequently report their normal ACK timeout to the caller.
+        try {
+            send_udp_packet(_sock_fd, _mem, size());
+        } catch (...) {
+        }
         _claimer.release();
     }
 

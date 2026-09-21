@@ -73,8 +73,8 @@ uint32_t nearest_e100_sample_rate(double rate)
     const uint32_t requested_rate = rate <= 0.0 ? 0u : static_cast<uint32_t>(rate + 0.5);
 
     return *std::min_element(
-        sdr::api::kGc080xLegacySampleRatesHz.begin(),
-        sdr::api::kGc080xLegacySampleRatesHz.end(),
+        sdr::api::kMp2021LegacySampleRatesHz.begin(),
+        sdr::api::kMp2021LegacySampleRatesHz.end(),
         [requested_rate](uint32_t lhs, uint32_t rhs) {
             const uint32_t lhs_delta =
                 lhs > requested_rate ? lhs - requested_rate : requested_rate - lhs;
@@ -121,7 +121,7 @@ E100Impl::E100Impl(const std::string port, const sdr::api::DeviceProfile& profil
     record_buff_args.recv_buff_size = kE100RecordSocketBufferBytes;
 
     _record_udp = udp_zero_copy::make(
-        port, SDR_STRINGIZE(MICROPHASE_E100_UDP_RECORD_PORT), record_buff_args);
+        port, SDR_STRINGIZE(ANTSDR_E100_UDP_RECORD_PORT), record_buff_args);
     _record_data_bus = std::make_shared<local_ctrl>(_record_udp, 0x73, 8192);
     // E100 firmware receives record/replay commands on the record data port.
     // E206 uses the newer split control/data-port protocol and needs this

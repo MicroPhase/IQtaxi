@@ -52,8 +52,8 @@ std::vector<double> IQTaxiDevice::listSampleRates( const int direction, const si
 
     const std::string& product = profile().product;
     if (product == "E100" || product == "E206") {
-        options.reserve(sdr::api::kGc080xLegacySampleRatesHz.size());
-        for (uint32_t rate : sdr::api::kGc080xLegacySampleRatesHz) {
+        options.reserve(sdr::api::kMp2021LegacySampleRatesHz.size());
+        for (uint32_t rate : sdr::api::kMp2021LegacySampleRatesHz) {
             options.push_back(static_cast<double>(rate));
         }
         return options;

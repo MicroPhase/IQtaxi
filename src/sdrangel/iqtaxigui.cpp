@@ -153,7 +153,7 @@ void IqtaxiGui::setupUi()
     auto *form = new QFormLayout();
     m_ipEdit = new QLineEdit(m_rootWidget);
     m_scanButton = new QPushButton("Scan", m_rootWidget);
-    m_scanButton->setToolTip("UDP discover MicroPhase boards, fill Device IP, and show E100-6G/10G");
+    m_scanButton->setToolTip("UDP discover ANTSDR boards, fill Device IP, and show E100-6G/10G");
     auto *ipRow = new QWidget(m_rootWidget);
     auto *ipLayout = new QHBoxLayout(ipRow);
     ipLayout->setContentsMargins(0, 0, 0, 0);

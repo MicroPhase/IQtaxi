@@ -36,7 +36,7 @@ using namespace sdr::api;
 using namespace sdr::core;
 using namespace e100;
 
-#define MICROPHASE_e100_FW_COMPAT_NUM 2
+#define ANTSDR_e100_FW_COMPAT_NUM 2
 
 #define BUFF_SIZE 1000e3
 
@@ -44,17 +44,18 @@ using namespace e100;
 #define E100_CTRL_LATCH_TIME_PPS (1 << 1)
 #define E100_CTRL_LATCH_TIME_SYNC (1 << 2)
 
-#define MICROPHASE_CHECK "MicroPhase"
+/* Wire token for UDP discover; firmware still replies "MicroPhase". */
+#define ANTSDR_CHECK "MicroPhase"
 
-#define    MICROPHASE_NAME_BR0 "e100"
-#define    MICROPHASE_NAME_E100 "E100"
-#define    MICROPHASE_NAME_E200 "E200"
-#define    MICROPHASE_NAME_E206 "E206"
-#define    MICROPHASE_NAME_M300 "M300"
+#define    ANTSDR_NAME_BR0 "e100"
+#define    ANTSDR_NAME_E100 "E100"
+#define    ANTSDR_NAME_E200 "E200"
+#define    ANTSDR_NAME_E206 "E206"
+#define    ANTSDR_NAME_M300 "M300"
 
-#define    MICROPHASE_RX_WAZZUP_BR0 "r"
+#define    ANTSDR_RX_WAZZUP_BR0 "r"
 
-using microphase_e100_ctrl_data_t = sdr::api::IqtaxiUdpDiscoverPacket;
+using antsdr_udp_discover_packet_t = sdr::api::IqtaxiUdpDiscoverPacket;
 
 static const uint8_t e100_FW_COMPAT_NUM_MAJOR = 8;
 static const uint8_t e100_FW_COMPAT_NUM_MINOR = 0;
@@ -113,7 +114,7 @@ private:
     } _time_source;
     sdr::api::Device::sptr iqtaxi_device;
     const DeviceProfile* _profile = &e100_udp_profile();
-    std::string _product_name = MICROPHASE_NAME_E100;
+    std::string _product_name = ANTSDR_NAME_E100;
     bool _is_m300 = false;
     bool _is_e100 = true;
     bool _ignore_tx_timestamps = true;

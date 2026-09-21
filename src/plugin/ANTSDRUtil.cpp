@@ -1,10 +1,10 @@
-#include "MicroSDRUtil.hpp"
+#include "ANTSDRUtil.hpp"
 
 static bool is_supported_device_name(const char *name)
 {
-    return strcmp(name, MICROPHASE_NAME_E100) == 0 ||
-           strcmp(name, MICROPHASE_NAME_E200) == 0 ||
-           strcmp(name, MICROPHASE_NAME_E206) == 0;
+    return strcmp(name, ANTSDR_NAME_E100) == 0 ||
+           strcmp(name, ANTSDR_NAME_E200) == 0 ||
+           strcmp(name, ANTSDR_NAME_E206) == 0;
 }
 
 struct if_addrs_t {
@@ -92,8 +92,8 @@ KwargsList discover_device(int timeout_ms, unit_t &out_dev)
     dest.sin_port   = htons(LISTEN_PORT);
     
     unit_t send_data{};
-    strncpy(send_data.check,MICROPHASE_CHECK,sizeof(send_data.check));
-    strncpy(send_data.name,MICROPHASE_NAME_BR0,sizeof(send_data.name));
+    strncpy(send_data.check,ANTSDR_CHECK,sizeof(send_data.check));
+    strncpy(send_data.name,ANTSDR_NAME_BR0,sizeof(send_data.name));
     uint8_t send_buf[sizeof(unit_t)] = {0};
     memcpy(send_buf,(uint8_t *)&send_data,sizeof(unit_t));
     std::set<std::string> local_ips;
@@ -150,7 +150,7 @@ KwargsList discover_device(int timeout_ms, unit_t &out_dev)
 
         if (n == sizeof(unit_t) 
         and is_supported_device_name(out_dev.name)
-        and strcmp(out_dev.check,MICROPHASE_CHECK) == 0){
+        and strcmp(out_dev.check,ANTSDR_CHECK) == 0){
             from.sin_port = htons(LISTEN_PORT);
             sendto(sock, send_buf, sizeof(send_buf), 0,
                    (sockaddr *)&from, sizeof(from));
@@ -168,7 +168,7 @@ KwargsList discover_device(int timeout_ms, unit_t &out_dev)
                          (sockaddr *)&from, &len);
             if (n == sizeof(unit_t) 
             and is_supported_device_name(out_dev.name)
-            and strcmp(out_dev.check,MICROPHASE_CHECK) == 0){
+            and strcmp(out_dev.check,ANTSDR_CHECK) == 0){
                 inet_ntop(AF_INET, &from.sin_addr, ip, sizeof(ip));
                 const std::string device_key = std::string(ip) + ":" + out_dev.name;
                 if (seen_devices.count(device_key))
@@ -204,12 +204,12 @@ int find_device(){
 
 static void printBannner(void){
     std::cout << "---------------------------------------" << std::endl;
-    std::cout << "---  MicroPhase SDR Utility v1.0.0  ---" << std::endl;
+    std::cout << "---  ANTSDR SDR Utility v1.0.0  ---" << std::endl;
     std::cout << "---------------------------------------" << std::endl;
 }
 
 static int printHelp(void){
-    std::cout << "Usage MicroSDRUtil [options]" << std::endl;
+    std::cout << "Usage ANTSDRUtil [options]" << std::endl;
     std::cout << "  Options summary:" << std::endl;
     std::cout << "    --find[=\"driver=foo,type=bar\"] \t Discover available devices" << std::endl;
 

@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.11)
-project(microphase_iq_taxi LANGUAGES CXX C)
+project(iqtaxi LANGUAGES CXX C)
 
 include(GNUInstallDirs)
 

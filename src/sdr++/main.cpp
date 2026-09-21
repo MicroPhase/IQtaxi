@@ -46,8 +46,8 @@ constexpr std::array<double, N> toDoubleRates(
     return result;
 }
 
-constexpr auto kGc080xRates =
-    toDoubleRates(sdr::api::kGc080xLegacySampleRatesHz);
+constexpr auto kMp2021Rates =
+    toDoubleRates(sdr::api::kMp2021LegacySampleRatesHz);
 
 // E200 / AD9361: keep rates at or below 61.44 Msps.
 constexpr double kE200Rates[] = {
@@ -83,9 +83,9 @@ struct DeviceSpec {
 };
 
 const DeviceSpec kDeviceSpecs[] = {
-    {"E100", "E100", 10e9, &sdr::api::e100_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
+    {"E100", "E100", 10e9, &sdr::api::e100_udp_profile, kMp2021Rates.data(), kMp2021Rates.size(), 15360000.0},
     {"E200", "E200", 6e9, &sdr::api::e200_udp_profile, kE200Rates, std::size(kE200Rates), 30720000.0},
-    {"E206", "E206", 6e9, &sdr::api::e206_udp_profile, kGc080xRates.data(), kGc080xRates.size(), 15360000.0},
+    {"E206", "E206", 6e9, &sdr::api::e206_udp_profile, kMp2021Rates.data(), kMp2021Rates.size(), 15360000.0},
 };
 
 constexpr int kDeviceCount = static_cast<int>(std::size(kDeviceSpecs));
@@ -145,8 +145,8 @@ double nearestRate(const DeviceSpec& spec, double rate)
 
 SDRPP_MOD_INFO{
     /* Name:            */ "iqtaxi_source",
-    /* Description:     */ "Microphase IQTAXI native source",
-    /* Author:          */ "Microphase",
+    /* Description:     */ "ANTSDR IQTAXI native source",
+    /* Author:          */ "ANTSDR",
     /* Version:         */ 0, 2, 0,
     /* Max instances    */ 1
 };

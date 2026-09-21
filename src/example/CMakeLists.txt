@@ -18,6 +18,7 @@ endif()
 
 add_iqtaxi_example(e100_test e100/e100_test.cpp)
 add_iqtaxi_example(e100_full_duplex_test e100/e100_full_duplex_test.cpp)
+add_iqtaxi_example(e100_tx_harmonic_test e100/e100_tx_harmonic_test.cpp)
 add_iqtaxi_example(e100_record_iq_test e100/e100_record_iq_test.cpp)
 add_iqtaxi_example(e100_replay_iq_test e100/e100_replay_iq_test.cpp)
 add_iqtaxi_example(e100_control_stress_test e100/e100_control_stress_test.cpp)

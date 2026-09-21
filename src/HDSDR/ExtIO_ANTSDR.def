@@ -1,6 +1,6 @@
 ; Export undecorated ExtIO entry points.
 ; Works for MinGW/MXE x86_64 and for MSVC when linked with this .def.
-LIBRARY ExtIO_MicroPhase
+LIBRARY ExtIO_ANTSDR
 EXPORTS
     InitHW
     OpenHW

@@ -1,6 +1,6 @@
-# HDSDR ExtIO_MicroPhase
+# HDSDR ExtIO_ANTSDR
 
-Windows HDSDR 的 ExtIO 适配：一份 `ExtIO_MicroPhase.dll` 直接走 IQTAXI 原生驱动（`Device` / `rx_streamer`），不经过 UHD/Soapy。
+Windows HDSDR 的 ExtIO 适配：一份 `ExtIO_ANTSDR.dll` 直接走 IQTAXI 原生驱动（`Device` / `rx_streamer`），不经过 UHD/Soapy。
 
 HDSDR 界面里没有设备下拉，型号和 IP 用环境变量指定。默认 **E206**、`192.168.1.10`。
 
@@ -10,7 +10,7 @@ HDSDR 界面里没有设备下拉，型号和 IP 用环境变量指定。默认 
 | `E200` | AD9361 常用档，最高 **61.44** Msps | 0～75 | 30.72 Msps |
 | `E206` | 固件 22 档（含 80/64 族和 122.88） | 0～42 | 15.36 Msps |
 
-E100 打开后会按固件 RF 范围区分 6G / 10G，写入 `%TEMP%\ExtIO_MicroPhase.log`。
+E100 打开后会按固件 RF 范围区分 6G / 10G，写入 `%TEMP%\ExtIO_ANTSDR.log`。
 
 HDSDR 是 **32 位**程序，必须用 MXE 的 `i686-w64-mingw32.static` 交叉编译，不能用 `x86_64-w64-mingw32`。
 
@@ -82,7 +82,7 @@ rm -rf build-win
 mkdir build-win && cd build-win
 
 i686-w64-mingw32.static-cmake .. -DENABLE_WIN=ON
-make ExtIO_MicroPhase -j"$(nproc)"
+make ExtIO_ANTSDR -j"$(nproc)"
 ```
 
 `ENABLE_WIN=ON` 时只编 Windows 静态库、部分示例和本 ExtIO，不编 Soapy / UHD / GNU Radio。
@@ -90,13 +90,13 @@ make ExtIO_MicroPhase -j"$(nproc)"
 产物：
 
 ```text
-build-win/src/HDSDR/ExtIO_MicroPhase.dll
+build-win/src/HDSDR/ExtIO_ANTSDR.dll
 ```
 
 ## 部署到 Windows
 
 1. 安装 [HDSDR](https://www.hdsdr.de/)
-2. 把 `ExtIO_MicroPhase.dll` 拷到 `HDSDR.exe` **同一目录**
+2. 把 `ExtIO_ANTSDR.dll` 拷到 `HDSDR.exe` **同一目录**
 3. 用下面的 bat 启动（不要直接双击 `HDSDR.exe`，否则仍是默认 E206）
 
 在 HDSDR 目录新建 `start_hdsdr_e100.bat`：
@@ -115,14 +115,14 @@ E200 / E206 把 `IQTAXI_EXTIO_DEVICE` 改成对应名字即可。IP 按板卡实
 ## 使用
 
 1. 用 bat 启动 HDSDR
-2. Options → Select Input → 选 **ExtIO_MicroPhase**（Hardware 显示 MicroPhase，Model 为 E100/E200/E206）
+2. Options → Select Input → 选 **ExtIO_ANTSDR**（Hardware 显示 ANTSDR，Model 为 E100/E200/E206）
 3. 选采样率 / 衰减（此处按 RX 增益写入驱动）
 4. Start
 
 ## 日志
 
-Windows：`%TEMP%\ExtIO_MicroPhase.log`  
-例如 `C:\Users\<用户名>\AppData\Local\Temp\ExtIO_MicroPhase.log`
+Windows：`%TEMP%\ExtIO_ANTSDR.log`  
+例如 `C:\Users\<用户名>\AppData\Local\Temp\ExtIO_ANTSDR.log`
 
 打开成功时会有 `OpenHW ok E100 6G` 或 `E100 10G`。
 

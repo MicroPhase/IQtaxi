@@ -28,7 +28,7 @@ M300 在线烧录地址 0 的单一启动镜像，并回读校验：
 
 ```bash
 # 在 xilinx_image_builder 仓库根目录执行；默认会要求输入 PROGRAM 确认。
-host_app/e200/MICROPHASE_IQ_TAXI/build/src/example/m300_flash_update \
+/path/to/IQtaxi/build/src/example/m300_flash_update \
   --bin hdl/m300/vivado/project/m300_golden/m300_golden.runs/impl_1/system_top.bin \
   --base /dev/xdma0
 ```

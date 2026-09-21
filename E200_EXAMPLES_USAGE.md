@@ -1,6 +1,6 @@
 # IQTAXI 上位机示例程序使用说明
 
-本文说明 `host_app/e200/MICROPHASE_IQ_TAXI/src/example` 里 IQTAXI 相关示例程序的常用运行方法，覆盖单通道接收、单通道发送、单通道全双工、双通道接收、IQ 录制和 IQ 回放。当前 E206 可直接使用这些示例。
+本文说明 `IQtaxi/src/example` 里 IQTAXI 相关示例程序的常用运行方法，覆盖单通道接收、单通道发送、单通道全双工、双通道接收、IQ 录制和 IQ 回放。当前 E206 可直接使用这些示例。
 
 默认示例里的设备 IP 为 `192.168.1.10`，如果你的板卡地址不同，运行命令时用 `--addr` 改掉即可。
 
@@ -14,20 +14,20 @@ sudo ip link set eth0 up
 ping 192.168.1.10
 ```
 
-E206 板端需要先启动 MP2021/GC080X 和控制服务：
+E206 板端需要先启动 MP2021 和控制服务：
 
 ```bash
 /usr/sbin/e206_v25_server
 ```
 
-`e206_v25_server` 会先做 legacy authorization 校验，通过后初始化 MP2021/GC080X，并启动兼容 IQTAXI 控制协议的 UDP 命令服务。
+`e206_v25_server` 会先做 legacy authorization 校验，通过后初始化 MP2021，并启动兼容 IQTAXI 控制协议的 UDP 命令服务。
 
 ## 编译示例程序
 
 在主机上编译 IQTAXI 上位机程序：
 
 ```bash
-cd host_app/e200/MICROPHASE_IQ_TAXI
+cd /path/to/IQtaxi
 cmake -S . -B build -DENABLE_GNURADIO_IQTAXI=OFF
 cmake --build build --target \
   e200_iq_example \

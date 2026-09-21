@@ -11,8 +11,8 @@ uint32_t nearest_e206_sample_rate(double rate)
     const uint32_t requested_rate = rate <= 0.0 ? 0u : static_cast<uint32_t>(rate + 0.5);
 
     return *std::min_element(
-        sdr::api::kGc080xLegacySampleRatesHz.begin(),
-        sdr::api::kGc080xLegacySampleRatesHz.end(),
+        sdr::api::kMp2021LegacySampleRatesHz.begin(),
+        sdr::api::kMp2021LegacySampleRatesHz.end(),
         [requested_rate](uint32_t lhs, uint32_t rhs) {
             const uint32_t lhs_delta =
                 lhs > requested_rate ? lhs - requested_rate : requested_rate - lhs;

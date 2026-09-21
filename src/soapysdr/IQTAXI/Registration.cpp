@@ -30,24 +30,25 @@
 #include <errno.h>
 // 查找函数（返回可发现的设备列表）
 #define LISTEN_PORT 49100
-#define MICROPHASE_CHECK "MicroPhase"
+/* Wire token for UDP discover; firmware still replies "MicroPhase". */
+#define ANTSDR_CHECK "MicroPhase"
 
-#define    MICROPHASE_DRIVER_IQTAXI "IQTAXI"
-#define    MICROPHASE_NAME_BR0 "e100"
-#define    MICROPHASE_NAME_E100 "E100"
-#define    MICROPHASE_NAME_E200 "E200"
-#define    MICROPHASE_NAME_E206 "E206"
-#define    MICROPHASE_NAME_M300 "M300"
-#define    MICROPHASE_DRIVER_M300_XDMA "M300_XDMA"
-#define    MICROPHASE_DRIVER_FNIC_XDMA "FNIC_XDMA"
+#define    ANTSDR_DRIVER_IQTAXI "IQTAXI"
+#define    ANTSDR_NAME_BR0 "e100"
+#define    ANTSDR_NAME_E100 "E100"
+#define    ANTSDR_NAME_E200 "E200"
+#define    ANTSDR_NAME_E206 "E206"
+#define    ANTSDR_NAME_M300 "M300"
+#define    ANTSDR_DRIVER_M300_XDMA "M300_XDMA"
+#define    ANTSDR_DRIVER_FNIC_XDMA "FNIC_XDMA"
 
 using unit_t = sdr::api::IqtaxiUdpDiscoverPacket;
 
 static bool is_supported_device_name(const char *name)
 {
-    return strcmp(name, MICROPHASE_NAME_E100) == 0 ||
-           strcmp(name, MICROPHASE_NAME_E200) == 0 ||
-           strcmp(name, MICROPHASE_NAME_E206) == 0;
+    return strcmp(name, ANTSDR_NAME_E100) == 0 ||
+           strcmp(name, ANTSDR_NAME_E200) == 0 ||
+           strcmp(name, ANTSDR_NAME_E206) == 0;
 }
 
 static bool kwargs_match_device(const SoapySDR::Kwargs &args, const char *device_name)
@@ -63,7 +64,7 @@ static bool kwargs_match_device(const SoapySDR::Kwargs &args, const char *device
 
     if (args.count("driver") != 0) {
         const std::string expected_driver = name + "_UDP";
-        if (args.at("driver") != MICROPHASE_DRIVER_IQTAXI &&
+        if (args.at("driver") != ANTSDR_DRIVER_IQTAXI &&
             args.at("driver") != expected_driver) {
             return false;
         }
@@ -76,20 +77,20 @@ static bool is_m300_request(const SoapySDR::Kwargs &args)
 {
     if (args.count("driver") != 0) {
         const std::string driver = args.at("driver");
-        if (driver == MICROPHASE_DRIVER_M300_XDMA ||
-            driver == MICROPHASE_DRIVER_FNIC_XDMA) {
+        if (driver == ANTSDR_DRIVER_M300_XDMA ||
+            driver == ANTSDR_DRIVER_FNIC_XDMA) {
             return true;
         }
     }
     if (args.count("device") != 0) {
         const std::string device = args.at("device");
-        if (device == MICROPHASE_NAME_M300 ||
-            device == MICROPHASE_DRIVER_M300_XDMA ||
-            device == MICROPHASE_DRIVER_FNIC_XDMA) {
+        if (device == ANTSDR_NAME_M300 ||
+            device == ANTSDR_DRIVER_M300_XDMA ||
+            device == ANTSDR_DRIVER_FNIC_XDMA) {
             return true;
         }
     }
-    if (args.count("product") != 0 && args.at("product") == MICROPHASE_NAME_M300) {
+    if (args.count("product") != 0 && args.at("product") == ANTSDR_NAME_M300) {
         return true;
     }
     if (args.count("transport") != 0) {
@@ -126,15 +127,14 @@ static SoapySDR::Kwargs make_device_info(
     // E100 6G/10G band in label only; Gqrx and SoapySDRUtil --find read that.
     SoapySDR::Kwargs devInfo;
     const std::string name(device_name);
-    const std::string model = sdr::api::iqtaxi_model_label(name, board_version);
 
     devInfo["type"] = "soapy";
-    devInfo["driver"] = MICROPHASE_DRIVER_IQTAXI;
+    devInfo["driver"] = ANTSDR_DRIVER_IQTAXI;
     devInfo["device"] = name;
     devInfo["product"] = name;
     devInfo["transport"] = "udp";
     devInfo["addr"] = addr;
-    devInfo["label"] = "Microphase " + model;
+    devInfo["label"] = sdr::api::iqtaxi_series_label(name, board_version);
 
     return devInfo;
 }
@@ -144,9 +144,9 @@ static SoapySDR::Kwargs make_m300_device_info(
 {
     SoapySDR::Kwargs devInfo;
     devInfo["type"] = "soapy";
-    devInfo["driver"] = MICROPHASE_DRIVER_M300_XDMA;
-    devInfo["device"] = MICROPHASE_DRIVER_M300_XDMA;
-    devInfo["product"] = MICROPHASE_NAME_M300;
+    devInfo["driver"] = ANTSDR_DRIVER_M300_XDMA;
+    devInfo["device"] = ANTSDR_DRIVER_M300_XDMA;
+    devInfo["product"] = ANTSDR_NAME_M300;
     devInfo["transport"] = "pcie";
     devInfo["iface"] = "xdma";
     devInfo["addr"] = info.addr;
@@ -156,7 +156,8 @@ static SoapySDR::Kwargs make_m300_device_info(
     if (!info.pci_bdf.empty()) {
         devInfo["pci_bdf"] = info.pci_bdf;
     }
-    devInfo["label"] = "Microphase M300 PCIe [" + info.serial + "]";
+    devInfo["label"] = std::string(sdr::api::kIqtaxiProductSeries) +
+                       "-M300 PCIe [" + info.serial + "]";
     return devInfo;
 }
 
@@ -244,8 +245,8 @@ SoapySDR::KwargsList discover_device(int timeout_ms, unit_t &out_dev, const Soap
     dest.sin_port   = htons(LISTEN_PORT);
     
     unit_t send_data;
-    strncpy(send_data.check,MICROPHASE_CHECK,sizeof(send_data.check));
-    strncpy(send_data.name,MICROPHASE_NAME_BR0,sizeof(send_data.name));
+    strncpy(send_data.check,ANTSDR_CHECK,sizeof(send_data.check));
+    strncpy(send_data.name,ANTSDR_NAME_BR0,sizeof(send_data.name));
     uint8_t send_buf[sizeof(unit_t)] = {0};
     memcpy(send_buf,(uint8_t *)&send_data,sizeof(unit_t));
     std::set<std::string> local_ips;
@@ -303,7 +304,7 @@ SoapySDR::KwargsList discover_device(int timeout_ms, unit_t &out_dev, const Soap
 
         if (n == sizeof(unit_t) 
         and is_supported_device_name(out_dev.name)
-        and strcmp(out_dev.check,MICROPHASE_CHECK) == 0){
+        and strcmp(out_dev.check,ANTSDR_CHECK) == 0){
             if (!kwargs_match_device(args, out_dev.name)) {
                 continue;
             }
@@ -328,7 +329,7 @@ SoapySDR::KwargsList discover_device(int timeout_ms, unit_t &out_dev, const Soap
             // printf("errno=%d\n", errno);
             if (n == sizeof(unit_t) 
             and is_supported_device_name(out_dev.name)
-            and strcmp(out_dev.check,MICROPHASE_CHECK) == 0){
+            and strcmp(out_dev.check,ANTSDR_CHECK) == 0){
                 inet_ntop(AF_INET, &from.sin_addr, ip, sizeof(ip));
                 const std::string device_key = std::string(ip) + ":" + out_dev.name;
                 if (seen_devices.count(device_key))
@@ -361,14 +362,14 @@ static SoapySDR::KwargsList findUdpSDR(const SoapySDR::Kwargs &args)
 
     const bool direct_addr = args.count("addr") != 0;
     if (direct_addr) {
-        if (kwargs_match_device(args, MICROPHASE_NAME_E100)) {
-            results.push_back(make_device_info(MICROPHASE_NAME_E100, args.at("addr")));
+        if (kwargs_match_device(args, ANTSDR_NAME_E100)) {
+            results.push_back(make_device_info(ANTSDR_NAME_E100, args.at("addr")));
         }
-        if (kwargs_match_device(args, MICROPHASE_NAME_E200)) {
-            results.push_back(make_device_info(MICROPHASE_NAME_E200, args.at("addr")));
+        if (kwargs_match_device(args, ANTSDR_NAME_E200)) {
+            results.push_back(make_device_info(ANTSDR_NAME_E200, args.at("addr")));
         }
-        if (kwargs_match_device(args, MICROPHASE_NAME_E206)) {
-            results.push_back(make_device_info(MICROPHASE_NAME_E206, args.at("addr")));
+        if (kwargs_match_device(args, ANTSDR_NAME_E206)) {
+            results.push_back(make_device_info(ANTSDR_NAME_E206, args.at("addr")));
         }
         return results;
     }
@@ -396,16 +397,16 @@ static SoapySDR::KwargsList findM300SDR(const SoapySDR::Kwargs &args)
     // present and an XDMA node exists.
     const bool has_udp_selector =
         (args.count("device") != 0 &&
-         (args.at("device") == MICROPHASE_NAME_E100 ||
-          args.at("device") == MICROPHASE_NAME_E200 ||
-          args.at("device") == MICROPHASE_NAME_E206)) ||
+         (args.at("device") == ANTSDR_NAME_E100 ||
+          args.at("device") == ANTSDR_NAME_E200 ||
+          args.at("device") == ANTSDR_NAME_E206)) ||
         (args.count("product") != 0 &&
-         (args.at("product") == MICROPHASE_NAME_E100 ||
-          args.at("product") == MICROPHASE_NAME_E200 ||
-          args.at("product") == MICROPHASE_NAME_E206)) ||
+         (args.at("product") == ANTSDR_NAME_E100 ||
+          args.at("product") == ANTSDR_NAME_E200 ||
+          args.at("product") == ANTSDR_NAME_E206)) ||
         (args.count("transport") != 0 && args.at("transport") == "udp") ||
         (args.count("driver") != 0 &&
-         (args.at("driver") == MICROPHASE_DRIVER_IQTAXI ||
+         (args.at("driver") == ANTSDR_DRIVER_IQTAXI ||
           args.at("driver") == "E100_UDP" ||
           args.at("driver") == "E200_UDP" ||
           args.at("driver") == "E206_UDP"));
@@ -456,7 +457,7 @@ static SoapySDR::Device *makeMySDR(const SoapySDR::Kwargs &args)
 // old modules avoids duplicate Soapy registry entries when both plugins are
 // installed during migration.
 static SoapySDR::Registry registerIQTaxiSDR(
-    MICROPHASE_DRIVER_IQTAXI,
+    ANTSDR_DRIVER_IQTAXI,
     &findUdpSDR,
     &makeMySDR,
     SOAPY_SDR_ABI_VERSION
@@ -470,7 +471,7 @@ static SoapySDR::Registry registerE206SDR(
 );
 
 static SoapySDR::Registry registerM300SDR(
-    MICROPHASE_DRIVER_M300_XDMA,
+    ANTSDR_DRIVER_M300_XDMA,
     &findM300SDR,
     &makeMySDR,
     SOAPY_SDR_ABI_VERSION

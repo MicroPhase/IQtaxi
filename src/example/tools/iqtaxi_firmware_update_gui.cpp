@@ -36,7 +36,7 @@
 namespace {
 
 constexpr int kDefaultPort = 49312;
-constexpr int kMicrophaseDiscoverPort = 49100;
+constexpr int kAntsdrDiscoverPort = 49100;
 constexpr std::size_t kMaxResponseBytes = 128u * 1024u;
 constexpr std::size_t kLogLimitBytes = 512u * 1024u;
 
@@ -67,7 +67,7 @@ struct GuiState {
     bool error = false;
 };
 
-using MicrophaseDiscoverPacket = sdr::api::IqtaxiUdpDiscoverPacket;
+using AntsdrDiscoverPacket = sdr::api::IqtaxiUdpDiscoverPacket;
 
 class TcpClient {
 public:
@@ -592,7 +592,7 @@ static void send_discover_request(GuiState& state, int port)
         }
 
         set_status(state, "discovering devices", false, 0);
-        append_log(state, "$ FIND_DEVICES udp:" + std::to_string(kMicrophaseDiscoverPort) +
+        append_log(state, "$ FIND_DEVICES udp:" + std::to_string(kAntsdrDiscoverPort) +
                           " tcp:" + std::to_string(port) + "\n");
 
         std::vector<std::string> found_hosts;
@@ -619,7 +619,7 @@ static void send_discover_request(GuiState& state, int port)
 
         sockaddr_in dst{};
         dst.sin_family = AF_INET;
-        dst.sin_port = htons(kMicrophaseDiscoverPort);
+        dst.sin_port = htons(kAntsdrDiscoverPort);
         dst.sin_addr.s_addr = htonl(INADDR_BROADCAST);
 
         std::vector<sockaddr_in> discover_targets;
@@ -635,7 +635,7 @@ static void send_discover_request(GuiState& state, int port)
             discover_targets.push_back(directed);
         }
 
-        MicrophaseDiscoverPacket request{};
+        AntsdrDiscoverPacket request{};
         std::snprintf(request.check, sizeof(request.check), "%s", "MicroPhase");
         std::snprintf(request.name, sizeof(request.name), "%s", "e100");
 
@@ -673,7 +673,7 @@ static void send_discover_request(GuiState& state, int port)
                 continue;
             }
 
-            MicrophaseDiscoverPacket response{};
+            AntsdrDiscoverPacket response{};
             sockaddr_in src{};
             socklen_t src_len = sizeof(src);
             const ssize_t n = recvfrom(fd, &response, sizeof(response), 0,

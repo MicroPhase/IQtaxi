@@ -1,6 +1,7 @@
 build/
 build_win/
 build-win/
+build-win64/
 .vs/
 .idea/
 .vscode/

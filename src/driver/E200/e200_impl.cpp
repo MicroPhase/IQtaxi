@@ -100,7 +100,7 @@ E200Impl::E200Impl(const std::string port)
     record_buff_args.recv_buff_size = kE200RecordSocketBufferBytes;
 
     _record_udp = udp_zero_copy::make(
-        port, SDR_STRINGIZE(MICROPHASE_E200_UDP_RECORD_PORT), record_buff_args);
+        port, SDR_STRINGIZE(ANTSDR_E200_UDP_RECORD_PORT), record_buff_args);
     _record_data_bus = std::make_shared<local_ctrl>(_record_udp, 0x73, 8192);
     send_record_data_hello(_record_data_bus);
 }

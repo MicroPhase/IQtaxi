@@ -2,7 +2,7 @@ if(NOT ENABLE_LINUX)
     find_package(SoapySDR REQUIRED)
 
     SOAPY_SDR_MODULE_UTIL(
-            TARGET Microphase_IQTAXI
+            TARGET ANTSDR_IQTAXI
             SOURCES
             Registration.cpp
             iqtaxi_Streaming.cpp

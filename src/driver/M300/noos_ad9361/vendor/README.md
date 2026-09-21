@@ -8,7 +8,7 @@ board/e200/init_ad9361_e200/lib/ad9361
 board/e200/init_ad9361_e200/lib/no_os
 ```
 
-Keeping the snapshot here makes `host_app/e200/MICROPHASE_IQ_TAXI`
+Keeping the snapshot here makes `IQtaxi`
 self-contained. In particular, its CMake build must not depend on the board
 firmware source tree or on the repository's surrounding directory layout.
 

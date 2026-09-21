@@ -7,7 +7,7 @@
 #include <memory>
 #include <vector>
 
-#define MICROPHASE_E200_UDP_RECORD_PORT 49209
+#define ANTSDR_E200_UDP_RECORD_PORT 49209
 
 class E200Impl : public IqtaxiUdpImpl {
 public:

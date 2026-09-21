@@ -36,11 +36,12 @@ typedef std::map<std::string,std::string> Kwargs;
 typedef std::vector<Kwargs> KwargsList;
 
 #define LISTEN_PORT 49100
-#define MICROPHASE_CHECK "MicroPhase"
+/* Wire token for UDP discover; firmware still replies "MicroPhase". */
+#define ANTSDR_CHECK "MicroPhase"
 
-#define    MICROPHASE_NAME_BR0 "e100"
-#define    MICROPHASE_NAME_E100 "E100"
-#define    MICROPHASE_NAME_E200 "E200"
-#define    MICROPHASE_NAME_E206 "E206"
+#define    ANTSDR_NAME_BR0 "e100"
+#define    ANTSDR_NAME_E100 "E100"
+#define    ANTSDR_NAME_E200 "E200"
+#define    ANTSDR_NAME_E206 "E206"
 
 using unit_t = sdr::api::IqtaxiUdpDiscoverPacket;

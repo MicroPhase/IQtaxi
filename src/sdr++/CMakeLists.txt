@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.13)
 
-# Built as part of MICROPHASE_IQ_TAXI, or standalone from this directory.
+# Built as part of IQtaxi, or standalone from this directory.
 if (CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
     project(iqtaxi_source LANGUAGES CXX)
 endif ()
@@ -21,7 +21,7 @@ else ()
 endif ()
 
 set(IQTAXI_ROOT "${_IQTAXI_ROOT}" CACHE PATH
-    "MICROPHASE_IQ_TAXI source root (for include/sdr/...)" FORCE)
+    "IQtaxi source root (for include/sdr/...)" FORCE)
 set(IQTAXI_LIB_DIR "/usr/local/lib" CACHE PATH
     "Directory containing libsdr_core.so and libsdr_driver.so")
 

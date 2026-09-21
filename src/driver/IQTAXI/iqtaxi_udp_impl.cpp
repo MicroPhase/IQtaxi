@@ -9,7 +9,7 @@ using namespace e100;
 
 namespace {
 constexpr double kSampleRateCommandTimeoutSec = 25.0;
-/* A GC080X LO change can fall back from fastlock to a full band calibration.
+/* A MP2021 LO change can fall back from fastlock to a full band calibration.
  * The device server handles commands synchronously, so its ACK is intentionally
  * delayed until the synthesizers have either locked or returned a real error. */
 constexpr double kLoCommandTimeoutSec = 10.0;
@@ -148,19 +148,19 @@ bool IqtaxiUdpImpl::iqtaxi_udp_init(const std::string port) {
     default_buff_args.num_recv_frames = 16;
     default_buff_args.send_buff_size = kControlSocketBufferBytes;
     default_buff_args.recv_buff_size = kControlSocketBufferBytes;
-    _udp_ctrl =  udp_zero_copy::make(port, SDR_STRINGIZE(MICROPHASE_IQTAXI_UDP_CTRL_PORT), default_buff_args);
+    _udp_ctrl =  udp_zero_copy::make(port, SDR_STRINGIZE(ANTSDR_IQTAXI_UDP_CTRL_PORT), default_buff_args);
     _local_bus = std::make_shared<local_ctrl>(_udp_ctrl,0x70,8192);
 
     default_buff_args.num_send_frames = 16;
     default_buff_args.num_recv_frames = kRxStreamRecvFrames;
     default_buff_args.send_buff_size = kStreamSocketBufferBytes;
     default_buff_args.recv_buff_size = kStreamSocketBufferBytes;
-    _udp_rx_stream= udp_zero_copy::make(port, SDR_STRINGIZE(MICROPHASE_IQTAXI_UDP_DATA_RX_PORT), default_buff_args);
+    _udp_rx_stream= udp_zero_copy::make(port, SDR_STRINGIZE(ANTSDR_IQTAXI_UDP_DATA_RX_PORT), default_buff_args);
     _rx_stream_bus = std::make_shared<local_ctrl>(_udp_rx_stream,0x71,8192);
 
     default_buff_args.num_send_frames = kTxStreamSendFrames;
     default_buff_args.num_recv_frames = 16;
-    _udp_tx_stream= udp_zero_copy::make(port, SDR_STRINGIZE(MICROPHASE_IQTAXI_UDP_DATA_TX_PORT), default_buff_args);
+    _udp_tx_stream= udp_zero_copy::make(port, SDR_STRINGIZE(ANTSDR_IQTAXI_UDP_DATA_TX_PORT), default_buff_args);
     _tx_stream_bus = std::make_shared<local_ctrl>(_udp_tx_stream,0x72,8192);
 
     _local_bus->poke32(SET_CMD_PORT, 0);

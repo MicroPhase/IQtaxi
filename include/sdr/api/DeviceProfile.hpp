@@ -60,12 +60,23 @@ inline std::string iqtaxi_model_label(const std::string& product,
     return product;
 }
 
+// Product family shown by Gqrx / SoapySDRUtil / UHD find. Keep UDP
+// discover check ("MicroPhase") unchanged; that is a wire protocol token.
+inline constexpr const char* kIqtaxiProductSeries = "ANTSDR";
+
+inline std::string iqtaxi_series_label(const std::string& product,
+                                      const std::string& board_version = {})
+{
+    return std::string(kIqtaxiProductSeries) + "-" +
+           iqtaxi_model_label(product, board_version);
+}
+
 inline const DeviceProfile& e100_udp_profile()
 {
     static const DeviceProfile profile = {
         "E100",
         "udp",
-        "GC080x",
+        "MP2021",
         "6G",
         {50e6, 6e9, 1.0},
         {50e6, 6e9, 1.0},
@@ -112,7 +123,7 @@ inline const DeviceProfile& e206_udp_profile()
         "",
         {70e6, 6e9, 1.0},
         {70e6, 6e9, 1.0},
-        // E206 uses the GC080x full RX gain-table index (0..42), not dB.
+        // E206 uses the MP2021 full RX gain-table index (0..42), not dB.
         {0.0, 42.0, 1.0},
         {0.0, 50.0, 1.0},
     };

@@ -207,7 +207,7 @@ static std::string format_freq_label(double hz)
 }
 
 static constexpr const auto& kSupportedSampleRates =
-    sdr::api::kGc080xLegacySampleRatesHz;
+    sdr::api::kMp2021LegacySampleRatesHz;
 
 static const std::array<size_t, 5> kSupportedSpectrumFftSizes = {
     4096u,
@@ -1133,7 +1133,7 @@ private:
                 set_status(std::string("LVDS IF reset failed: ") + ex.what(), true);
             }
         }
-        ImGui::TextDisabled("For the v25 server: pulse gc080x_linux_set_tx_reset().");
+        ImGui::TextDisabled("For the v25 server: pulse mp2021_linux_set_tx_reset().");
     }
 
     void render_tx_controls()

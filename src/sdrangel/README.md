@@ -51,7 +51,7 @@ cmake .. \
 ### 示例
 
 ```bash
-cd /path/to/MICROPHASE_IQ_TAXI
+cd /path/to/IQtaxi
 mkdir -p build && cd build
 cmake .. \
   -DENABLE_SDRANGEL_IQTAXI=ON \
