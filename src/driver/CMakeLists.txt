@@ -77,4 +77,29 @@ else()
     install(DIRECTORY ../../include/
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/iq_taxi
         COMPONENT RuntimeAPI)
+    # External programs include iq_taxi/src/driver/*.hpp. Those headers use
+    # ../../../include/sdr/..., which resolves when iq_taxi/include points at
+    # the installed iq_taxi tree (where the public headers live).
+    install(DIRECTORY
+            E100
+            E200
+            E206
+            IQTAXI
+            transport
+        DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/iq_taxi/src/driver
+        COMPONENT RuntimeAPI
+        FILES_MATCHING
+            PATTERN "*.hpp"
+            PATTERN "*.h")
+    install(CODE "
+        set(_iqtaxi_include \"\$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${CMAKE_INSTALL_INCLUDEDIR}/iq_taxi/include\")
+        if(NOT EXISTS \"\${_iqtaxi_include}\")
+            execute_process(
+                COMMAND \"${CMAKE_COMMAND}\" -E create_symlink . \"\${_iqtaxi_include}\"
+                RESULT_VARIABLE _iqtaxi_include_link_result)
+            if(NOT _iqtaxi_include_link_result EQUAL 0)
+                message(FATAL_ERROR \"Failed to create \${_iqtaxi_include}\")
+            endif()
+        endif()
+    " COMPONENT RuntimeAPI)
 endif()
