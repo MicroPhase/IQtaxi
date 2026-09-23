@@ -1,4 +1,5 @@
 #include "iqtaxi_impl.hpp"
+#include "../../driver/IQTAXI/clock_reference.hpp"
 #include "iqtaxi_rx_streamer.hpp"
 #include "iqtaxi_tx_streamer.hpp"
 #include "uhd/transport/if_addrs.hpp"
@@ -615,6 +616,10 @@ iqtaxi_impl::iqtaxi_impl(const uhd::device_addr_t &device_addr){
     const std::string initial_clock_source = device_addr.has_key("clock_source")
         ? device_addr["clock_source"]
         : "internal";
+    _clock_lock_timeout = device_addr.cast<double>("clock_lock_timeout", 15.0);
+    if (!std::isfinite(_clock_lock_timeout) || _clock_lock_timeout <= 0.0) {
+        throw uhd::value_error("clock_lock_timeout must be finite and positive");
+    }
     if (device_addr.has_key("ignore_tx_timestamps")) {
         std::string value = device_addr["ignore_tx_timestamps"];
         std::transform(value.begin(), value.end(), value.begin(),
@@ -861,6 +866,10 @@ iqtaxi_impl::iqtaxi_impl(const uhd::device_addr_t &device_addr){
         _tree->create<std::vector<std::string>>(mb_path / "clock_source" / "options")
                 .set(clock_sources);
         _tree->create<std::string>(mb_path / "clock_source" / "value")
+                .set_publisher([this]() {
+                    std::lock_guard<std::mutex> lock(_clock_mutex);
+                    return _clock_source;
+                })
                 .set_coercer(std::bind(
                         &check_e100_option_valid, "clock source", clock_sources, std::placeholders::_1))
                 .add_coerced_subscriber(
@@ -1365,28 +1374,18 @@ void iqtaxi_impl::setAutoTickRate(const bool enable){
 
 sensor_value_t iqtaxi_impl::get_ref_locked(void)
 {
-    if (_clock_source == "internal") {
-        return sensor_value_t("Ref", true, "locked", "unlocked");
-    }
+    std::lock_guard<std::mutex> lock(_clock_mutex);
     if (_is_m300 || !_local_bus) {
-        return sensor_value_t("Ref", false, "locked", "unlocked");
+        return sensor_value_t("Ref", _clock_source == "internal", "locked", "unlocked");
     }
 
-    if (_product_name == ANTSDR_NAME_E100) {
-        const bool lock = (_local_bus->peek32(CUSTOM_RB32_CORE_MISC) & 0x1) == 0x1;
-        return sensor_value_t("Ref", lock, "locked", "unlocked");
-    }
-
-    // E200/E206 packs the VCXO loop status as:
-    // [0] locked, [1] reference valid, [2] 10 MHz detected,
-    // [3] PPS detected, [5:4] selected source, [31:16] DAC value.
-    // An external UHD reference is usable only when the 10 MHz input is
-    // present, selected, and the VCXO disciplining loop has acquired lock.
-    const uint32_t status = _local_bus->peek32(
-        _is_e100 ? CUSTOM_RB_GET_E100_VCXO_STATUS : CUSTOM_RB_GET_VCXO_STATUS,
-        1.0);
-    const bool lock = (status & 0x7u) == 0x7u && ((status >> 4) & 0x3u) == 1u;
-    return sensor_value_t("Ref", lock, "locked", "unlocked");
+    // Use the same readiness criteria as the clock-source switch. For an
+    // internal source, "locked" means the free-running mode is selected.
+    const auto status = iqtaxi_device->get_clock_reference_status();
+    const auto source = _clock_source == "external"
+        ? ClockReferenceSource::external_10mhz : ClockReferenceSource::manual_dac;
+    const bool ready = sdr::driver::clock_reference_ready(status.raw, source);
+    return sensor_value_t("Ref", ready, "locked", "unlocked");
 }
 
 void iqtaxi_impl::set_time(const uhd::time_spec_t& t)
@@ -1477,6 +1476,7 @@ void iqtaxi_impl::update_time_source(const std::string& source)
 
 void iqtaxi_impl::update_clock_source(const std::string& source)
 {
+    std::lock_guard<std::mutex> lock(_clock_mutex);
     if (_is_m300 || !_local_bus) {
         if (source != "internal") {
             throw uhd::value_error("external clock source is not supported by this backend");
@@ -1485,48 +1485,33 @@ void iqtaxi_impl::update_clock_source(const std::string& source)
         return;
     }
 
-    if (_product_name == ANTSDR_NAME_E100) {
-        if (source != "internal" && source != "external") {
-            throw uhd::key_error("update_clock_source: unknown source: " + source);
-        }
-        _clock_source = source;
-        return;
-    }
-
-    if (source == "external") {
-        const uint64_t response = _local_bus->poke32_ack_value(
-            _is_e100 ? CUSTOM_SET_E100_VCXO_REF_SOURCE : CUSTOM_SET_VCXO_REF_SOURCE,
-            static_cast<uint32_t>(E200Impl::VcxoReferenceSource::external_10mhz),
-            1.0);
-        if (response != 0u) {
-            throw uhd::runtime_error("failed to select the external 10 MHz VCXO reference");
-        }
-    } else if (source == "internal") {
-        // Freeze the last loop DAC value before switching to free-running
-        // operation. This avoids a frequency step when returning from an
-        // external reference and gives UHD's "internal" source its expected
-        // local-oscillator semantics.
-        const uint32_t status = _local_bus->peek32(
-            _is_e100 ? CUSTOM_RB_GET_E100_VCXO_STATUS : CUSTOM_RB_GET_VCXO_STATUS,
-            1.0);
-        const uint32_t dac_value = status >> 16;
-        uint64_t response = _local_bus->poke32_ack_value(
-            _is_e100 ? CUSTOM_SET_E100_VCXO_DAC_VALUE : CUSTOM_SET_VCXO_DAC_VALUE,
-            dac_value, 1.0);
-        if (response == 0u) {
-            response = _local_bus->poke32_ack_value(
-                _is_e100 ? CUSTOM_SET_E100_VCXO_REF_SOURCE : CUSTOM_SET_VCXO_REF_SOURCE,
-                static_cast<uint32_t>(E200Impl::VcxoReferenceSource::manual_dac),
-                1.0);
-        }
-        if (response != 0u) {
-            throw uhd::runtime_error("failed to select the internal VCXO reference");
-        }
-    } else {
+    if (source != "external" && source != "internal") {
         throw uhd::key_error("update_clock_source: unknown source: " + source);
     }
 
-    _clock_source = source;
+    try {
+        if (source == "internal") {
+            // Preserve the current loop DAC value before free-running.
+            const auto status = iqtaxi_device->get_clock_reference_status();
+            iqtaxi_device->set_clock_manual_dac(status.dac_value);
+        }
+        UHD_LOGGER_INFO("ANT") << "Selecting " << source << " clock reference (timeout "
+                               << _clock_lock_timeout << " s)...";
+        const auto reference = source == "external"
+            ? ClockReferenceSource::external_10mhz : ClockReferenceSource::manual_dac;
+        // The driver owns the complete command/ACK/status-confirmation flow.
+        iqtaxi_device->set_clock_reference_source(reference, _clock_lock_timeout);
+        _clock_source = source;
+    } catch (const sdr::driver::clock_reference_not_ready& error) {
+        // Hardware accepted the switch. Keep the selected source even when
+        // lock acquisition fails; get_ref_locked() will report its readiness.
+        _clock_source = source;
+        throw uhd::runtime_error("Clock source '" + source + "': " + error.what());
+    } catch (const std::exception& error) {
+        throw uhd::runtime_error("Clock source '" + source + "': " + error.what());
+    }
+    UHD_LOGGER_INFO("ANT") << "Clock source '" << source << "' confirmed: "
+                           << (source == "external" ? "10 MHz reference locked" : "manual DAC selected");
 }
 
 double iqtaxi_impl::set_tick_rate(const double new_tick_rate)

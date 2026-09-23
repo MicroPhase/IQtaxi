@@ -80,7 +80,13 @@ namespace sdr::api{
         // Common E-series reference-clock control.  These non-virtual API
         // entry points keep applications independent of E100/E200/E206
         // implementation headers while preserving the existing Device ABI.
+        // Both overloads wait for the requested source to be ready. The
+        // one-argument form uses 10 s. Invalid arguments throw
+        // std::invalid_argument; command/readiness failures throw std::runtime_error.
+        // PPS/10 MHz require lock and a valid matching input; manual DAC
+        // only requires confirmation that the mode was selected.
         void set_clock_reference_source(ClockReferenceSource source);
+        void set_clock_reference_source(ClockReferenceSource source, double timeout_seconds);
         void set_clock_manual_dac(uint16_t value);
         ClockReferenceStatus get_clock_reference_status();
 

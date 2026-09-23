@@ -171,21 +171,25 @@ namespace sdr::api {
     }
 
     void Device::set_clock_reference_source(ClockReferenceSource source) {
+        set_clock_reference_source(source, 15.0);
+    }
+
+    void Device::set_clock_reference_source(ClockReferenceSource source, double timeout_seconds) {
         if (auto* device = dynamic_cast<E100Impl*>(this)) {
             // E206 derives from E100, but overrides the public clock-control
             // operations with a different register map. Dispatch it first.
             if (auto* e206 = dynamic_cast<E206Impl*>(this)) {
                 e206->set_vcxo_reference_source(
-                    static_cast<E206Impl::VcxoReferenceSource>(source));
+                    static_cast<E206Impl::VcxoReferenceSource>(source), timeout_seconds);
                 return;
             }
             device->set_vcxo_reference_source(
-                static_cast<E100Impl::VcxoReferenceSource>(source));
+                static_cast<E100Impl::VcxoReferenceSource>(source), timeout_seconds);
             return;
         }
         if (auto* device = dynamic_cast<E200Impl*>(this)) {
             device->set_vcxo_reference_source(
-                static_cast<E200Impl::VcxoReferenceSource>(source));
+                static_cast<E200Impl::VcxoReferenceSource>(source), timeout_seconds);
             return;
         }
         throw std::runtime_error("device does not support reference-clock selection");

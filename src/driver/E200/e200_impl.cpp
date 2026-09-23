@@ -1,4 +1,5 @@
 #include "./e200_impl.hpp"
+#include "../IQTAXI/clock_reference.hpp"
 #include "../E100/local_e100_regs.hpp"
 
 #include <algorithm>
@@ -107,10 +108,14 @@ E200Impl::E200Impl(const std::string port)
 
 void E200Impl::set_vcxo_reference_source(VcxoReferenceSource source)
 {
-    throw_if_vcxo_command_failed(
-        get_local_bus()->poke32_ack_value(
-            CUSTOM_SET_VCXO_REF_SOURCE, static_cast<uint32_t>(source), 1.0),
-        "set reference source");
+    set_vcxo_reference_source(source, 15.0);
+}
+
+void E200Impl::set_vcxo_reference_source(VcxoReferenceSource source, double timeout_seconds)
+{
+    sdr::driver::set_vcxo_reference_source(
+        *get_local_bus(), CUSTOM_SET_VCXO_REF_SOURCE, CUSTOM_RB_GET_VCXO_STATUS,
+        static_cast<sdr::api::ClockReferenceSource>(source), timeout_seconds);
 }
 
 void E200Impl::set_vcxo_manual_dac(uint16_t value)

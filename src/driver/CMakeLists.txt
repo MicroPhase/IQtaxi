@@ -47,6 +47,12 @@ target_link_libraries(sdr_driver PUBLIC
 
 if(NOT ENABLE_WIN)
     target_link_libraries(sdr_driver PRIVATE pthread)
+    enable_testing()
+    find_package(Threads REQUIRED)
+    add_executable(iqtaxi_clock_reference_test ../../tests/clock_reference_test.cpp)
+    target_include_directories(iqtaxi_clock_reference_test PRIVATE ${SDR_INCLUDE_DIR})
+    target_link_libraries(iqtaxi_clock_reference_test PRIVATE Threads::Threads)
+    add_test(NAME iqtaxi_clock_reference COMMAND iqtaxi_clock_reference_test)
 endif()
 
 target_compile_definitions(sdr_driver PRIVATE

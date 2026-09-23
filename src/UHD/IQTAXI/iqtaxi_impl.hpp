@@ -119,6 +119,8 @@ private:
     bool _is_e100 = true;
     bool _ignore_tx_timestamps = true;
     std::string _clock_source = "internal";
+    double _clock_lock_timeout = 15.0;
+    std::mutex _clock_mutex;
     // controllers
     std::weak_ptr<uhd::rx_streamer> _rx_streamer;
     std::weak_ptr<uhd::tx_streamer> _tx_streamer;

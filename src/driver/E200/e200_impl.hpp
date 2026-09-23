@@ -35,6 +35,9 @@ public:
     ~E200Impl() override = default;
 
     void set_vcxo_reference_source(VcxoReferenceSource source);
+    // Switch and wait for lock (PPS/10 MHz) or mode confirmation (manual DAC).
+    // The one-argument overload waits up to 10 s.
+    void set_vcxo_reference_source(VcxoReferenceSource source, double timeout_seconds);
     void set_vcxo_manual_dac(uint16_t value);
     VcxoStatus get_vcxo_status();
 
