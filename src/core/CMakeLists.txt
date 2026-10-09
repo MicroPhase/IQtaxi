@@ -23,7 +23,7 @@ target_include_directories(sdr_core PUBLIC
 )
 
 get_target_property(inc_dirs sdr_core INCLUDE_DIRECTORIES)
-message(STATUS "核心库包含路径: ${inc_dirs}")
+message(STATUS "Core library include directories: ${inc_dirs}")
 
 if(ENABLE_WIN)
         target_link_libraries(sdr_core PUBLIC

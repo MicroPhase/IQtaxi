@@ -1,18 +1,68 @@
 # iq_taxi
 
-## 编译并安装 Linux 驱动
+## 默认编译（Linux 原生驱动和 GUI）
 
-标准的 CMake/Make 安装流程会自动安装一套相互匹配的
+在 IQTAXI 源码根目录执行：
+
+```bash
+mkdir build && cd build
+cmake ../
+make
+```
+
+默认编译原生核心库、设备驱动、GUI、示例和工具，所有第三方应用插件均默认关闭，
+不会查找 SoapySDR、UHD、GNU Radio、SDR++ 或 SDRangel 的依赖。
+GUI 本身仍需要 OpenGL、GLFW3、GLEW 和 pkg-config 等基础开发依赖。
+
+## 手动启用插件
+
+安装对应应用的开发依赖后，在 `build` 目录重新运行 CMake，按需启用插件：
+
+```bash
+# 示例：只启用 UHD 插件
+cmake ../ -DENABLE_UHD_IQTAXI=ON
+make
+```
+
+各开关互相独立，均默认为 `OFF`，可组合传入多个 `-D...=ON`：
+
+| 插件 | CMake 开关 | 主要依赖 / 配置 |
+|------|------------|------------------|
+| SoapySDR | `ENABLE_SOAPYSDR_IQTAXI` | SoapySDR 开发包 |
+| UHD | `ENABLE_UHD_IQTAXI` | UHD、Boost 开发包 |
+| GNU Radio | `ENABLE_GNURADIO_IQTAXI` | GNU Radio 开发包及对应 Python 绑定工具 |
+| SDR++ | `ENABLE_SDRPP_IQTAXI` | `libsdrpp_core`，`-DSDRPP_ROOT=/path/to/SDRPlusPlus` |
+| SDRangel | `ENABLE_SDRANGEL_IQTAXI` | Qt5、SDRangel 库，`-DSDRANGEL_SOURCE_DIR=/path/to/sdrangel` |
+| HDSDR ExtIO | `ENABLE_HDSDR_IQTAXI` | Windows/MXE 构建，同时设置 `-DENABLE_WIN=ON` |
+
+关闭已启用的插件时，将对应开关设为 `OFF`。CMake 会保留已有构建目录中的缓存值；
+升级前已经配置过的目录不会自动关闭旧开关，可使用新的构建目录，或显式指定：
+
+```bash
+cmake ../ \
+    -DENABLE_SOAPYSDR_IQTAXI=OFF \
+    -DENABLE_UHD_IQTAXI=OFF \
+    -DENABLE_GNURADIO_IQTAXI=OFF \
+    -DENABLE_SDRPP_IQTAXI=OFF \
+    -DENABLE_SDRANGEL_IQTAXI=OFF \
+    -DENABLE_HDSDR_IQTAXI=OFF
+```
+
+## 安装 Linux 驱动和可选 UHD 插件
+
+默认构建后可用 `sudo make install` 安装原生驱动和工具。
+若需要 UHD 集成，从源码根目录执行以下命令，会安装一套相互匹配的
 `libsdr_core`、`libsdr_driver` 和 UHD `libIQTaxiUHD` 插件：
 
 ```bash
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+    -DENABLE_UHD_IQTAXI=ON \
     -DCMAKE_INSTALL_PREFIX=/usr/local
 make -C build -j"$(nproc)"
 sudo make -C build install
 ```
 
-`sudo make install` 末尾还会检查三者是否都已安装并自动执行
+启用 UHD 插件后，`sudo make install` 还会检查三者是否都已安装并自动执行
 `ldconfig`。不要只复制 UHD 插件，否则插件与运行库版本不一致时，
 GNU Radio/gr-osmosdr 可能在创建 RX streamer 时崩溃。已有构建目录若曾
 使用其他安装前缀，请先重新运行上面的 `cmake -S ...` 配置命令。

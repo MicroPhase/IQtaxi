@@ -12,12 +12,12 @@
 
 采样率 / 增益范围随所选设备变化。E100 频率旋钮默认到 10 GHz；6G / 10G 由固件 RF 范围读回，Start 后标题会变成 `E100-6G` 或 `E100-10G`。
 
-父工程默认打开本插件（与 `ref/E100` 相同），源码路径默认 `/home/kang/packages/sdrangel`。找不到头文件时会 skip，不会让整个工程失败。
+父工程默认关闭本插件，需手动启用。源码路径默认 `/home/kang/packages/sdrangel`。启用后找不到头文件时会 skip，不会让整个工程失败。
 
 ## 构建
 
 ```bash
-cmake ..
+cmake .. -DENABLE_SDRANGEL_IQTAXI=ON
 make -j"$(nproc)" iqtaxiinput
 sudo cmake --install . --component SDRangelIQTAXIPlugin
 ```
@@ -41,7 +41,7 @@ cmake .. \
 
 | 变量 | 默认 | 说明 |
 |------|------|------|
-| `ENABLE_SDRANGEL_IQTAXI` | ON | 父工程是否尝试编译本插件 |
+| `ENABLE_SDRANGEL_IQTAXI` | OFF | 父工程是否尝试编译本插件 |
 | `BUILD_SDRANGEL_IQTAXI_PLUGIN` | ON | 是否生成目标 `iqtaxiinput` |
 | `BUILD_SDRANGEL_IQTAXI_SKELETON` | ON | 是否编静态后端骨架 |
 | `SDRANGEL_SOURCE_DIR` | `/home/kang/packages/sdrangel` | SDRangel 源码树 |

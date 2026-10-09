@@ -81,11 +81,12 @@ cd /path/to/IQtaxi
 rm -rf build-win
 mkdir build-win && cd build-win
 
-i686-w64-mingw32.static-cmake .. -DENABLE_WIN=ON
+i686-w64-mingw32.static-cmake .. -DENABLE_WIN=ON -DENABLE_HDSDR_IQTAXI=ON
 make ExtIO_ANTSDR -j"$(nproc)"
 ```
 
-`ENABLE_WIN=ON` 时只编 Windows 静态库、部分示例和本 ExtIO，不编 Soapy / UHD / GNU Radio。
+`ENABLE_WIN=ON` 时默认只编 Windows 静态库和部分示例；加上 `ENABLE_HDSDR_IQTAXI=ON`
+才编译本 ExtIO，不编 Soapy / UHD / GNU Radio。
 
 产物：
 
